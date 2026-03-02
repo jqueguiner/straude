@@ -52,13 +52,13 @@
         "eslint-config-next": "16.1.6",
         "jsdom": "^28.1.0",
         "tailwindcss": "^4",
-        "typescript": "^5",
+        "typescript": "5.9.3",
         "vitest": "^4.0.18",
       },
     },
     "packages/cli": {
       "name": "straude",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "bin": {
         "straude": "./dist/index.js",
       },
