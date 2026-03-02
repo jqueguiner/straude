@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -18,9 +19,68 @@ interface Bucket {
   user_count: number;
 }
 
-export function TimeToFirstSync({ data }: { data: Bucket[] }) {
+function Skeleton() {
+  return (
+    <div className="admin-card">
+      <div className="px-5 pt-4 pb-2">
+        <h2
+          className="text-sm font-semibold"
+          style={{ color: "var(--admin-fg)" }}
+        >
+          Time to First Sync
+        </h2>
+        <p
+          className="mt-0.5 text-xs"
+          style={{ color: "var(--admin-fg-muted)" }}
+        >
+          How fast users push their first data
+        </p>
+      </div>
+      <div className="h-[240px] px-5 pb-4 flex items-end gap-2">
+        {[0.4, 0.7, 1, 0.6, 0.3, 0.2].map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 animate-pulse rounded-t"
+            style={{
+              height: `${h * 100}%`,
+              backgroundColor: "var(--admin-border)",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function TimeToFirstSync() {
   const { theme } = useAdminTheme();
   const isDark = theme === "dark";
+  const [data, setData] = useState<Bucket[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/time-to-first-sync")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(setData)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  if (error) {
+    return (
+      <div className="admin-card">
+        <div className="px-5 py-4">
+          <p className="text-sm" style={{ color: "var(--admin-fg-muted)" }}>
+            Failed to load time to first sync
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return <Skeleton />;
 
   const gridColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)";
   const axisColor = isDark ? "#555" : "#999";

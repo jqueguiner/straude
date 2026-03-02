@@ -82,6 +82,12 @@ export function CommandPalette({
       perform: () => router.push("/recap"),
     },
     {
+      id: "prompts",
+      name: "Prompts",
+      shortcut: [],
+      perform: () => router.push("/prompts"),
+    },
+    {
       id: "profile",
       name: "Profile",
       shortcut: [],

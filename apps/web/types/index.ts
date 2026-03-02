@@ -151,6 +151,31 @@ export interface Notification {
   actor?: Pick<User, "username" | "avatar_url">;
 }
 
+export type PromptSubmissionStatus =
+  | "new"
+  | "accepted"
+  | "in_progress"
+  | "rejected"
+  | "shipped";
+
+export interface PromptSubmission {
+  id: string;
+  user_id: string;
+  prompt: string;
+  is_anonymous: boolean;
+  status: PromptSubmissionStatus;
+  is_public: boolean;
+  is_hidden: boolean;
+  admin_notes: string | null;
+  pr_url: string | null;
+  shipped_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: Pick<User, "username" | "display_name" | "avatar_url">;
+}
+
 export interface UserAchievement {
   id: string;
   user_id: string;

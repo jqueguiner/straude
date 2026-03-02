@@ -5,6 +5,7 @@ import { getServiceClient } from "@/lib/supabase/service";
 import { parseMentions } from "@/lib/utils/mentions";
 import { sendNotificationEmail } from "@/lib/email/send-comment-email";
 import { checkAndAwardAchievements } from "@/lib/achievements";
+import { rateLimit } from "@/lib/rate-limit";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = rateLimit("social", user.id, { limit: 30 });
+  if (limited) return limited;
 
   const { content } = await request.json();
 

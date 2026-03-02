@@ -87,7 +87,10 @@ export function CommentThread({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       user: currentUser
-        ? { username: currentUser.username, avatar_url: currentUser.avatar_url } as Comment["user"]
+        ? ({
+            username: currentUser.username,
+            avatar_url: currentUser.avatar_url,
+          } as Comment["user"])
         : undefined,
     };
 
@@ -140,71 +143,85 @@ export function CommentThread({
     <div className="border-t border-border">
       {/* Comment list */}
       <div className="flex flex-col">
-        {comments.map((comment) => (
-          <div key={comment.id} className="flex gap-3 border-b border-dashed border-muted/30 px-4 py-4 sm:px-6">
-            <Link href={comment.user?.username ? `/u/${comment.user.username}` : "#"}>
-              <Avatar src={comment.user?.avatar_url} alt={comment.user?.username ?? ""} size="xs" fallback={comment.user?.username ?? "?"} />
-            </Link>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <Link
-                  href={comment.user?.username ? `/u/${comment.user.username}` : "#"}
-                  className="text-sm font-semibold hover:underline"
-                >
-                  {comment.user?.username ?? "anonymous"}
-                </Link>
-                <span suppressHydrationWarning className="text-xs text-muted">{timeAgo(comment.created_at)}</span>
+        {comments.map((comment) => {
+          const resolvedUsername =
+            comment.user?.username ??
+            (comment.user_id === userId ? currentUser?.username ?? null : null);
+          const displayUsername =
+            resolvedUsername ?? (comment.user_id === userId ? "you" : "anonymous");
+          const profileHref = resolvedUsername ? `/u/${resolvedUsername}` : "#";
+
+          return (
+            <div key={comment.id} className="flex gap-3 border-b border-dashed border-muted/30 px-4 py-4 sm:px-6">
+              <Link href={profileHref}>
+                <Avatar
+                  src={comment.user?.avatar_url}
+                  alt={resolvedUsername ?? displayUsername}
+                  size="xs"
+                  fallback={resolvedUsername ?? displayUsername}
+                />
+              </Link>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={profileHref}
+                    className="text-sm font-semibold hover:underline"
+                  >
+                    {displayUsername}
+                  </Link>
+                  <span suppressHydrationWarning className="text-xs text-muted">{timeAgo(comment.created_at)}</span>
+                </div>
+                {editingId === comment.id ? (
+                  <div className="mt-1 flex gap-2">
+                    <MentionInput
+                      value={editContent}
+                      onChange={setEditContent}
+                      maxLength={500}
+                      onSubmit={() => handleEdit(comment.id)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(comment.id)}
+                      className="text-xs font-semibold text-accent hover:underline"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="text-xs text-muted hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <MentionText text={comment.content} />
+                )}
+                {userId === comment.user_id && editingId !== comment.id && (
+                  <div className="mt-1 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(comment.id);
+                        setEditContent(comment.content);
+                      }}
+                      className="text-xs text-muted hover:text-foreground"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(comment.id)}
+                      className="text-xs text-muted hover:text-error"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
-              {editingId === comment.id ? (
-                <div className="mt-1 flex gap-2">
-                  <MentionInput
-                    value={editContent}
-                    onChange={setEditContent}
-                    maxLength={500}
-                    onSubmit={() => handleEdit(comment.id)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(comment.id)}
-                    className="text-xs font-semibold text-accent hover:underline"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingId(null)}
-                    className="text-xs text-muted hover:underline"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <MentionText text={comment.content} />
-              )}
-              {userId === comment.user_id && editingId !== comment.id && (
-                <div className="mt-1 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingId(comment.id);
-                      setEditContent(comment.content);
-                    }}
-                    className="text-xs text-muted hover:text-foreground"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(comment.id)}
-                    className="text-xs text-muted hover:text-error"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Comment input */}

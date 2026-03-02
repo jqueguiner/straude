@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { after } from "@/lib/utils/after";
 import { createClient } from "@/lib/supabase/server";
 import { checkAndAwardAchievements } from "@/lib/achievements";
+import { rateLimit } from "@/lib/rate-limit";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -15,6 +16,9 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = rateLimit("social", user.id, { limit: 30 });
+  if (limited) return limited;
 
   const { error } = await supabase.from("kudos").insert({
     user_id: user.id,

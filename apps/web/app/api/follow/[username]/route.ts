@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { after } from "@/lib/utils/after";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 type RouteContext = { params: Promise<{ username: string }> };
 
@@ -14,6 +15,9 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = rateLimit("social", user.id, { limit: 30 });
+  if (limited) return limited;
 
   const { data: target } = await supabase
     .from("users")

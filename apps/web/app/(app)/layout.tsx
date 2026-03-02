@@ -8,6 +8,7 @@ import { RightSidebar } from "@/components/app/shared/RightSidebar";
 import { MobileNav } from "@/components/app/shared/MobileNav";
 import { GuestHeader, GuestMobileNav } from "@/components/app/shared/GuestHeader";
 import { CommandPalette } from "@/components/app/shared/CommandPalette";
+import { SubmitPromptWidget } from "@/components/app/prompts/SubmitPromptWidget";
 
 // Pages that are publicly accessible without login
 const PUBLIC_PAGES = ["/feed", "/leaderboard"];
@@ -171,14 +172,9 @@ export default async function AppLayout({
         {/* Mobile bottom nav */}
         <MobileNav username={profile?.username} />
 
-        <a
-          href="https://x.com/oscrhong"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fixed bottom-3 right-3 hidden text-sm text-muted hover:text-foreground lg:block"
-        >
-          Feedback? DM us.
-        </a>
+        <SubmitPromptWidget
+          username={profile?.username ?? null}
+        />
       </div>
     </CommandPalette>
   );

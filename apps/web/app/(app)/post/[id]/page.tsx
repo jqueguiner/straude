@@ -73,8 +73,27 @@ export default async function PostDetailPage({
     .order("created_at", { ascending: true })
     .limit(20);
 
-  const [{ data: post }, { data: kudosCheck }, { data: recentKudos }, { data: comments }] =
-    await Promise.all([postPromise, kudosCheckPromise, recentKudosPromise, commentsPromise]);
+  const viewerProfilePromise = user
+    ? supabase
+        .from("users")
+        .select("username, avatar_url")
+        .eq("id", user.id)
+        .maybeSingle()
+    : Promise.resolve({ data: null });
+
+  const [
+    { data: post },
+    { data: kudosCheck },
+    { data: recentKudos },
+    { data: comments },
+    { data: viewerProfile },
+  ] = await Promise.all([
+    postPromise,
+    kudosCheckPromise,
+    recentKudosPromise,
+    commentsPromise,
+    viewerProfilePromise,
+  ]);
 
   if (!post) notFound();
 
@@ -89,6 +108,9 @@ export default async function PostDetailPage({
   };
 
   const isOwner = user?.id === post.user_id;
+  const currentCommentUser = viewerProfile?.username
+    ? { username: viewerProfile.username, avatar_url: viewerProfile.avatar_url }
+    : undefined;
 
   return (
     <>
@@ -101,6 +123,7 @@ export default async function PostDetailPage({
         postId={id}
         initialComments={comments ?? []}
         userId={user?.id ?? null}
+        currentUser={currentCommentUser}
       />
     </>
   );

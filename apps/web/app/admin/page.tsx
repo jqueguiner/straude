@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { isAdmin } from "@/lib/admin";
 import { getServiceClient } from "@/lib/supabase/service";
 import { StatCard } from "./components/StatCard";
 import { NorthStarChart } from "./components/NorthStarChart";
@@ -7,15 +10,17 @@ import { GrowthMetrics } from "./components/GrowthMetrics";
 import { CohortRetention } from "./components/CohortRetention";
 import { RevenueConcentration } from "./components/RevenueConcentration";
 import { TimeToFirstSync } from "./components/TimeToFirstSync";
+import { PromptInbox } from "./components/PromptInbox";
 
 export default async function AdminPage() {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user || !isAdmin(user.id)) redirect("/feed");
+
   const supabase = getServiceClient();
 
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400000)
     .toISOString()
     .slice(0, 10);
 
@@ -26,10 +31,7 @@ export default async function AdminPage() {
     growthRes,
     dauRes,
     wauRes,
-    mauRes,
-    cohortRes,
-    revenueRes,
-    syncRes,
+    promptsRes,
   ] = await Promise.all([
     supabase.rpc("admin_cumulative_spend"),
     supabase.rpc("admin_top_users", { p_limit: 20 }),
@@ -37,10 +39,13 @@ export default async function AdminPage() {
     supabase.rpc("admin_growth_metrics"),
     supabase.from("daily_usage").select("user_id").gte("date", today),
     supabase.from("daily_usage").select("user_id").gte("date", weekAgo),
-    supabase.from("daily_usage").select("user_id").gte("date", monthAgo),
-    supabase.rpc("admin_cohort_retention"),
-    supabase.rpc("admin_revenue_concentration"),
-    supabase.rpc("admin_time_to_first_sync"),
+    supabase
+      .from("prompt_submissions")
+      .select(
+        "id,prompt,is_anonymous,status,is_hidden,created_at,user:users!prompt_submissions_user_id_fkey(username,display_name)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   const spendData = (spendRes.data ?? []).map((r: any) => ({
@@ -80,29 +85,34 @@ export default async function AdminPage() {
 
   const dau = uniqueReal(dauRes.data ?? []);
   const wau = uniqueReal(wauRes.data ?? []);
-  const mau = uniqueReal(mauRes.data ?? []);
 
-  const cohortData = (cohortRes.data ?? []).map((r: any) => ({
-    cohort_week: r.cohort_week,
-    cohort_size: Number(r.cohort_size),
-    week_0: r.week_0 !== null ? Number(r.week_0) : null,
-    week_1: r.week_1 !== null ? Number(r.week_1) : null,
-    week_2: r.week_2 !== null ? Number(r.week_2) : null,
-    week_3: r.week_3 !== null ? Number(r.week_3) : null,
-    week_4: r.week_4 !== null ? Number(r.week_4) : null,
-  }));
+  // WoW spend growth: compare last 7 days vs prior 7 days
+  const now = Date.now();
+  const thisWeekSpend = spendData
+    .filter((r: { date: string; daily_total: number }) => {
+      const t = new Date(r.date).getTime();
+      return t > now - 7 * 86400000;
+    })
+    .reduce((s: number, r: { daily_total: number }) => s + r.daily_total, 0);
+  const lastWeekSpend = spendData
+    .filter((r: { date: string; daily_total: number }) => {
+      const t = new Date(r.date).getTime();
+      return t > now - 14 * 86400000 && t <= now - 7 * 86400000;
+    })
+    .reduce((s: number, r: { daily_total: number }) => s + r.daily_total, 0);
+  const wowGrowth =
+    lastWeekSpend > 0
+      ? ((thisWeekSpend - lastWeekSpend) / lastWeekSpend) * 100
+      : null;
 
-  const revenueData = (revenueRes.data ?? []).map((r: any) => ({
-    segment: r.segment,
-    user_count: Number(r.user_count),
-    total_spend: Number(r.total_spend),
-    pct_of_total: Number(r.pct_of_total),
-  }));
-
-  const syncData = (syncRes.data ?? []).map((r: any) => ({
-    bucket: r.bucket,
-    bucket_order: Number(r.bucket_order),
-    user_count: Number(r.user_count),
+  const promptRows = (promptsRes.data ?? []).map((r: any) => ({
+    id: r.id,
+    prompt: r.prompt,
+    is_anonymous: r.is_anonymous,
+    status: r.status,
+    is_hidden: r.is_hidden,
+    created_at: r.created_at,
+    user: r.user,
   }));
 
   const spendFormatted = totalSpend.toLocaleString("en-US", {
@@ -129,7 +139,10 @@ export default async function AdminPage() {
         <StatCard label="Total Users" value={String(totalUsers)} />
         <StatCard label="DAU" value={String(dau)} />
         <StatCard label="WAU" value={String(wau)} />
-        <StatCard label="MAU" value={String(mau)} />
+        <StatCard
+          label="Spend WoW"
+          value={wowGrowth !== null ? `${wowGrowth >= 0 ? "+" : ""}${wowGrowth.toFixed(0)}%` : "\u2014"}
+        />
       </div>
 
       {/* North Star chart */}
@@ -141,14 +154,16 @@ export default async function AdminPage() {
         <GrowthMetrics data={growthData} />
       </div>
 
-      {/* Cohort Retention */}
-      <CohortRetention data={cohortData} />
+      {/* Cohort Retention — loads client-side */}
+      <CohortRetention />
 
-      {/* Revenue Concentration + Time to First Sync side by side */}
+      {/* Revenue Concentration + Time to First Sync — load client-side */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <RevenueConcentration data={revenueData} />
-        <TimeToFirstSync data={syncData} />
+        <RevenueConcentration />
+        <TimeToFirstSync />
       </div>
+
+      <PromptInbox initialPrompts={promptRows} />
 
       {/* Top users table */}
       <TopUsersTable users={topUsers} />

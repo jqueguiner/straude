@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { verifyCliToken } from "@/lib/api/cli-auth";
 import { getServiceClient } from "@/lib/supabase/service";
 import { checkAndAwardAchievements } from "@/lib/achievements";
+import { rateLimit } from "@/lib/rate-limit";
 import type { UsageSubmitRequest, UsageSubmitResponse, CcusageDailyEntry } from "@/types";
 
 const MAX_BACKFILL_DAYS = 7;
@@ -67,6 +68,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const limited = rateLimit("usage-submit", userId, { limit: 20 });
+  if (limited) return limited;
+
   // Validate all entries
   for (const entry of body.entries) {
     if (!isValidDate(entry.date)) {
@@ -87,121 +91,137 @@ export async function POST(request: Request) {
   const db = getServiceClient();
   const isVerified = body.source === "cli";
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://straude.com").replace(/\/+$/, "");
+
+  // Process all entries concurrently — each entry is independent per-date
+  const settled = await Promise.allSettled(
+    body.entries.map(async (entry) => {
+      // Check if a record already exists to determine create vs update
+      const { data: existing } = await db
+        .from("daily_usage")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("date", entry.date)
+        .maybeSingle();
+
+      const action: "created" | "updated" = existing ? "updated" : "created";
+
+      const { data: usage, error: usageError } = await db
+        .from("daily_usage")
+        .upsert(
+          {
+            user_id: userId,
+            date: entry.date,
+            cost_usd: entry.data.costUSD,
+            input_tokens: entry.data.inputTokens,
+            output_tokens: entry.data.outputTokens,
+            cache_creation_tokens: entry.data.cacheCreationTokens,
+            cache_read_tokens: entry.data.cacheReadTokens,
+            total_tokens: entry.data.totalTokens,
+            models: entry.data.models,
+            model_breakdown: entry.data.modelBreakdown ?? null,
+            is_verified: isVerified,
+            raw_hash: body.hash ?? null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,date" },
+        )
+        .select("id")
+        .single();
+
+      if (usageError || !usage) {
+        throw new Error(`Failed to upsert usage for ${entry.date}: ${usageError?.message}`);
+      }
+
+      // Build auto-title from usage data (only used for new posts)
+      const models = entry.data.models;
+      const hasClaude = models?.some((m) => m.includes("claude") || m.includes("opus") || m.includes("sonnet") || m.includes("haiku"));
+      const claudeLabel = models?.some((m) => m.includes("opus")) ? "Claude Opus"
+        : models?.some((m) => m.includes("sonnet")) ? "Claude Sonnet"
+        : models?.some((m) => m.includes("haiku")) ? "Claude Haiku" : null;
+      const codexModel = models?.find((m) => /^gpt-/i.test(m) || /^o3/i.test(m) || /^o4/i.test(m));
+      const codexLabel = codexModel
+        ? /^gpt-/i.test(codexModel)
+          ? codexModel.replace(/^gpt/i, "GPT").replace(/-codex$/i, "-Codex")
+          : /^o3/i.test(codexModel) ? "o3"
+          : /^o4/i.test(codexModel) ? "o4"
+          : codexModel
+        : null;
+      const toolLabels = [claudeLabel, codexLabel].filter(Boolean);
+      const modelLabel = toolLabels.length > 0 ? toolLabels.join(" + ") : (hasClaude ? "Claude" : null);
+      const dateLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const costLabel = entry.data.costUSD > 0 ? `, $${entry.data.costUSD.toFixed(2)}` : "";
+      const autoTitle = modelLabel ? `${dateLabel} — ${modelLabel}${costLabel}` : `${dateLabel}${costLabel}`;
+
+      // Create or update post linked to the daily_usage record
+      // Use separate insert/update to avoid overwriting user-edited titles
+      const { data: existingPost } = await db
+        .from("posts")
+        .select("id")
+        .eq("daily_usage_id", usage.id)
+        .maybeSingle();
+
+      let post: { id: string } | null = null;
+      let postError: any = null;
+
+      if (existingPost) {
+        const { data, error } = await db
+          .from("posts")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", existingPost.id)
+          .select("id")
+          .single();
+        post = data;
+        postError = error;
+      } else {
+        const { data, error } = await db
+          .from("posts")
+          .insert({
+            user_id: userId,
+            daily_usage_id: usage.id,
+            title: autoTitle,
+            updated_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        post = data;
+        postError = error;
+      }
+
+      if (postError || !post) {
+        throw new Error(`Failed to create post for ${entry.date}: ${postError?.message}`);
+      }
+
+      return {
+        date: entry.date,
+        usage_id: usage.id,
+        post_id: post.id,
+        post_url: `${appUrl}/post/${post.id}`,
+        action,
+      };
+    }),
+  );
+
+  // Collect results and errors
   const results: UsageSubmitResponse["results"] = [];
+  const errors: string[] = [];
 
-  for (const entry of body.entries) {
-    // Check if a record already exists to determine create vs update
-    const { data: existing } = await db
-      .from("daily_usage")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("date", entry.date)
-      .maybeSingle();
-
-    const action: "created" | "updated" = existing ? "updated" : "created";
-
-    const { data: usage, error: usageError } = await db
-      .from("daily_usage")
-      .upsert(
-        {
-          user_id: userId,
-          date: entry.date,
-          cost_usd: entry.data.costUSD,
-          input_tokens: entry.data.inputTokens,
-          output_tokens: entry.data.outputTokens,
-          cache_creation_tokens: entry.data.cacheCreationTokens,
-          cache_read_tokens: entry.data.cacheReadTokens,
-          total_tokens: entry.data.totalTokens,
-          models: entry.data.models,
-          model_breakdown: entry.data.modelBreakdown ?? null,
-          is_verified: isVerified,
-          raw_hash: body.hash ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,date" },
-      )
-      .select("id")
-      .single();
-
-    if (usageError || !usage) {
-      return NextResponse.json(
-        { error: `Failed to upsert usage for ${entry.date}: ${usageError?.message}` },
-        { status: 500 },
-      );
-    }
-
-    // Build auto-title from usage data (only used for new posts)
-    const models = entry.data.models;
-    const hasClaude = models?.some((m) => m.includes("claude") || m.includes("opus") || m.includes("sonnet") || m.includes("haiku"));
-    const claudeLabel = models?.some((m) => m.includes("opus")) ? "Claude Opus"
-      : models?.some((m) => m.includes("sonnet")) ? "Claude Sonnet"
-      : models?.some((m) => m.includes("haiku")) ? "Claude Haiku" : null;
-    const codexModel = models?.find((m) => /^gpt-/i.test(m) || /^o3/i.test(m) || /^o4/i.test(m));
-    const codexLabel = codexModel
-      ? /^gpt-/i.test(codexModel)
-        ? codexModel.replace(/^gpt/i, "GPT").replace(/-codex$/i, "-Codex")
-        : /^o3/i.test(codexModel) ? "o3"
-        : /^o4/i.test(codexModel) ? "o4"
-        : codexModel
-      : null;
-    const toolLabels = [claudeLabel, codexLabel].filter(Boolean);
-    const modelLabel = toolLabels.length > 0 ? toolLabels.join(" + ") : (hasClaude ? "Claude" : null);
-    const dateLabel = new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const costLabel = entry.data.costUSD > 0 ? `, $${entry.data.costUSD.toFixed(2)}` : "";
-    const autoTitle = modelLabel ? `${dateLabel} — ${modelLabel}${costLabel}` : `${dateLabel}${costLabel}`;
-
-    // Create or update post linked to the daily_usage record
-    // Use separate insert/update to avoid overwriting user-edited titles
-    let post: { id: string } | null = null;
-    let postError: any = null;
-
-    const { data: existingPost } = await db
-      .from("posts")
-      .select("id")
-      .eq("daily_usage_id", usage.id)
-      .maybeSingle();
-
-    if (existingPost) {
-      const { data, error } = await db
-        .from("posts")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", existingPost.id)
-        .select("id")
-        .single();
-      post = data;
-      postError = error;
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      results.push(result.value);
     } else {
-      const { data, error } = await db
-        .from("posts")
-        .insert({
-          user_id: userId,
-          daily_usage_id: usage.id,
-          title: autoTitle,
-          updated_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      post = data;
-      postError = error;
+      errors.push(result.reason?.message ?? "Unknown error");
     }
+  }
 
-    if (postError || !post) {
-      return NextResponse.json(
-        { error: `Failed to create post for ${entry.date}: ${postError?.message}` },
-        { status: 500 },
-      );
-    }
-
-    results.push({
-      date: entry.date,
-      usage_id: usage.id,
-      post_id: post.id,
-      post_url: `${appUrl}/post/${post.id}`,
-      action,
-    });
+  if (errors.length > 0 && results.length === 0) {
+    return NextResponse.json({ error: errors.join("; ") }, { status: 500 });
   }
 
   checkAndAwardAchievements(userId, "usage").catch(() => {});
 
-  return NextResponse.json({ results } satisfies UsageSubmitResponse);
+  const response: UsageSubmitResponse = { results };
+  if (errors.length > 0) {
+    return NextResponse.json({ ...response, errors }, { status: 207 });
+  }
+  return NextResponse.json(response);
 }

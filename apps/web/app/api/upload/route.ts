@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "node:crypto";
 import convert from "heic-convert";
 
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = rateLimit("upload", user.id, { limit: 10 });
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

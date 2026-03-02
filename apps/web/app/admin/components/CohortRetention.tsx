@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAdminTheme } from "./AdminShell";
 
 interface CohortRow {
@@ -21,9 +22,68 @@ function cellColor(pct: number | null, isDark: boolean): string {
   return `rgba(223, 86, 31, ${opacity})`;
 }
 
-export function CohortRetention({ data }: { data: CohortRow[] }) {
+function Skeleton() {
+  return (
+    <div className="admin-card">
+      <div className="px-5 pt-4 pb-2">
+        <h2
+          className="text-sm font-semibold"
+          style={{ color: "var(--admin-fg)" }}
+        >
+          Cohort Retention
+        </h2>
+        <p
+          className="mt-0.5 text-xs"
+          style={{ color: "var(--admin-fg-muted)" }}
+        >
+          Weekly retention by signup cohort
+        </p>
+      </div>
+      <div className="space-y-2 px-5 pb-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-6 animate-pulse rounded"
+            style={{
+              backgroundColor: "var(--admin-border)",
+              opacity: 1 - i * 0.15,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CohortRetention() {
   const { theme } = useAdminTheme();
   const isDark = theme === "dark";
+  const [data, setData] = useState<CohortRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/cohort-retention")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(setData)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  if (error) {
+    return (
+      <div className="admin-card">
+        <div className="px-5 py-4">
+          <p className="text-sm" style={{ color: "var(--admin-fg-muted)" }}>
+            Failed to load cohort retention
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return <Skeleton />;
 
   return (
     <div className="admin-card">
@@ -98,7 +158,7 @@ export function CohortRetention({ data }: { data: CohortRow[] }) {
                         borderRadius: 4,
                       }}
                     >
-                      {val !== null ? `${val}%` : "–"}
+                      {val !== null ? `${val}%` : "\u2013"}
                     </td>
                   );
                 })}

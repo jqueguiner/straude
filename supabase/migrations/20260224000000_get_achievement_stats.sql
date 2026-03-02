@@ -23,7 +23,6 @@ BEGIN
     COUNT(*) FILTER (WHERE d.is_verified)::bigint
   FROM public.daily_usage d WHERE d.user_id = p_user_id;
 END; $$;
-
 -- Only service_role can call this (achievements are awarded server-side).
 REVOKE ALL ON FUNCTION public.get_achievement_stats(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_achievement_stats(uuid) FROM anon;

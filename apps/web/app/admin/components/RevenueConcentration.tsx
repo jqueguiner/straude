@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAdminTheme } from "./AdminShell";
 
 interface Segment {
@@ -11,8 +12,8 @@ interface Segment {
 
 const SEGMENT_LABELS: Record<string, string> = {
   top_1: "Top 1",
-  top_5: "Top 2–5",
-  top_10: "Top 6–10",
+  top_5: "Top 2\u20135",
+  top_10: "Top 6\u201310",
   rest: "Everyone else",
 };
 
@@ -27,9 +28,65 @@ function formatUsd(value: number) {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-export function RevenueConcentration({ data }: { data: Segment[] }) {
+function Skeleton() {
+  return (
+    <div className="admin-card">
+      <div className="px-5 pt-4 pb-2">
+        <h2
+          className="text-sm font-semibold"
+          style={{ color: "var(--admin-fg)" }}
+        >
+          Revenue Concentration
+        </h2>
+      </div>
+      <div className="space-y-3 px-5 pb-5">
+        <div
+          className="h-8 animate-pulse rounded"
+          style={{ backgroundColor: "var(--admin-border)" }}
+        />
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded"
+              style={{ backgroundColor: "var(--admin-border)" }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RevenueConcentration() {
   const { theme } = useAdminTheme();
   const isDark = theme === "dark";
+  const [data, setData] = useState<Segment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/revenue-concentration")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(setData)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  if (error) {
+    return (
+      <div className="admin-card">
+        <div className="px-5 py-4">
+          <p className="text-sm" style={{ color: "var(--admin-fg-muted)" }}>
+            Failed to load revenue concentration
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return <Skeleton />;
 
   // Cumulative segments: top_1 is subset of top_5 which is subset of top_10
   // The RPC returns non-overlapping segments, so we need to accumulate

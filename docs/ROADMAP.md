@@ -4,7 +4,7 @@ Sorted from lowest to highest technical lift.
 
 ## Daily Digest Email (Streak Reminders + Social Nudges)
 
-A daily email at ~6 PM local time: "Your 12-day streak is at risk — push today." Include a social nugget ("@alice gave you kudos") and leaderboard position update. The email infra already exists (React Email, Resend, notification preferences). This is the single cheapest way to bring lapsed users back — it's the **trigger** in the habit loop.
+A daily email at ~6 PM local time: "Your 12-day streak is at risk — push today." Include a social nugget ("@alice gave you kudos") and leaderboard position update. Core email infra is live (React Email, Resend, notification preferences, cron-backed nudge emails), but this specific digest is not built yet. This is the single cheapest way to bring lapsed users back — it's the **trigger** in the habit loop.
 
 Requires: cron job (Vercel Cron or Supabase pg_cron), new email template, smart frequency logic (skip if user already pushed today), timezone-aware send time.
 
@@ -25,21 +25,13 @@ Streak freezes are now shipped (earned by enriching posts, extend grace window).
 - **Achievement chains**: Restructure the flat `ACHIEVEMENTS` array into progression quest lines with visible progress bars ("72% to 90-Day Streak").
 - **Ship Week countdown banner**: Show "4 days left — 3/5 synced" banner for users in their first week. The Ship Week achievement is live but the countdown UI is deferred.
 
-## ~~Notifications Page~~ (shipped 2026-02-25)
-
-Moved to Shipped section below.
-
-## Create Post Page
-
-Add a dedicated `/post/new` page for composing posts directly in the app (title, description, images, model selection). Currently the "Create Post" button in the header dropdown links to `/settings/import` as a placeholder.
-
 ## Rate Limiting on Data Creation Endpoints
 
 The CLI auth init endpoint has rate limiting (5 req/min/IP), but other write endpoints (comments, follows, kudos, upload, usage submit) do not. Consider per-user rate limiting via a shared utility or Supabase Edge Function middleware. Priority: `/api/upload` (file creation), `/api/usage/submit` (data creation), then social actions.
 
-## Content Security Policy (CSP)
+## CSP Hardening (Nonce-Based)
 
-Add a strict CSP header with nonce-based script/style sources. Requires auditing all script sources (Vercel Analytics, Supabase JS client), inline styles (Tailwind), and image origins (Supabase Storage). Deferred from the security audit because a misconfigured CSP breaks the app — needs careful per-source inventory.
+A baseline CSP header is shipped in `next.config.ts`, but it currently allows `'unsafe-inline'`. Remaining work is to move to a strict nonce-based policy for script/style sources. Requires auditing all script sources (Vercel Analytics, Supabase JS client), inline styles (Tailwind), and image origins (Supabase Storage).
 
 ## Real-time Notifications
 
@@ -106,6 +98,14 @@ Private or public groups where teams (company, OSS project, friend group) share 
 ---
 
 ## Shipped
+
+### Create Post Hub Page (2026-02-18)
+
+Dedicated `/post/new` flow is live. The "Create Post" action now routes to a post hub instead of the raw import page, with quick paths to edit recent unedited posts, sync via CLI, or import manually.
+
+### Security Headers + Baseline CSP (2026-02-26)
+
+Security headers are live in `next.config.ts`, including Content Security Policy, COOP, CORP, and `X-Permitted-Cross-Domain-Policies`. `X-Powered-By` is disabled and `/.well-known/security.txt` is shipped. Follow-up hardening to strict nonce-based CSP is tracked above.
 
 ### Admin Dashboard (2026-02-28)
 

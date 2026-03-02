@@ -48,27 +48,18 @@ export default async function FeedPage({
       .limit(20);
     posts = data ?? [];
   } else {
-    // following: own posts + followed users' posts
-    const { data: followRows } = await supabase
-      .from("follows")
-      .select("following_id")
-      .eq("follower_id", user!.id);
-
-    const followingIds = followRows?.map((f) => f.following_id) ?? [];
-    const feedUserIds = [user!.id, ...followingIds];
-
-    const { data } = await supabase
-      .from("posts")
-      .select(`${baseFields}, user:users!posts_user_id_fkey(*)`)
-      .in("user_id", feedUserIds)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    // following: own posts + followed users' posts (single join via RPC)
+    const { data } = await supabase.rpc("get_following_feed", {
+      p_user_id: user!.id,
+      p_limit: 20,
+    });
     posts = data ?? [];
   }
 
-  // Fetch incomplete posts for the logged-in user (bare synced sessions)
+  // Fetch incomplete posts for the logged-in user (bare synced sessions).
+  // Only needed on the "mine" tab where PendingPostsNudge is relevant.
   let pendingPosts: any[] = [];
-  if (user) {
+  if (user && feedType === "mine") {
     const { data } = await supabase
       .from("posts")
       .select("*, daily_usage:daily_usage!posts_daily_usage_id_fkey(*)")
@@ -135,9 +126,9 @@ export default async function FeedPage({
 
     posts = posts.map((p: any) => ({
       ...p,
-      kudos_count: p.kudos_count?.[0]?.count ?? 0,
+      kudos_count: Array.isArray(p.kudos_count) ? p.kudos_count[0]?.count ?? 0 : p.kudos_count ?? 0,
       kudos_users: kudosUsersMap.get(p.id) ?? [],
-      comment_count: p.comment_count?.[0]?.count ?? 0,
+      comment_count: Array.isArray(p.comment_count) ? p.comment_count[0]?.count ?? 0 : p.comment_count ?? 0,
       recent_comments: commentsMap.get(p.id) ?? [],
       has_kudosed: kudosedSet.has(p.id),
     }));
