@@ -273,15 +273,8 @@ describe("Flow: Privacy and Visibility", () => {
       data: { user: { id: viewerId } },
     });
 
-    // Viewer follows nobody
-    const followsChain = chainBuilder();
-    (followsChain.select as ReturnType<typeof vi.fn>).mockReturnValue(followsChain);
-    (followsChain.eq as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === "follows") return followsChain;
-      return chainBuilder();
-    });
+    // Feed route now uses rpc("get_feed") — return empty posts
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
     const { GET } = await import("@/app/api/feed/route");
     const req = makeRequest("http://localhost:3000/api/feed");
@@ -298,16 +291,8 @@ describe("Flow: Privacy and Visibility", () => {
       data: { user: null },
     });
 
-    // Global feed is public — support the .eq("user.is_public", true) chain
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === "posts") {
-        const c = chainBuilder();
-        c.eq = vi.fn().mockReturnValue(c);
-        c.limit = vi.fn().mockResolvedValue({ data: [], error: null });
-        return c;
-      }
-      return chainBuilder();
-    });
+    // Feed route now uses rpc("get_feed") — return empty posts for global feed
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
     const { GET } = await import("@/app/api/feed/route");
     const req = makeRequest("http://localhost:3000/api/feed");

@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockSupabase = {
   auth: { getUser: vi.fn() },
   from: vi.fn(),
+  rpc: vi.fn(),
 };
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -91,18 +92,20 @@ describe("Flow: Social Interactions", () => {
       user_id: USER_B.id,
       title: "Morning session",
       created_at: "2026-02-16T10:00:00Z",
-      kudos_count: [{ count: 0 }],
-      comment_count: [{ count: 0 }],
+      kudos_count: 0,
+      comment_count: 0,
     };
 
-    const followsChain = chainBuilder({ data: [{ following_id: USER_B.id }] });
-    const postsChain = chainBuilder({ data: [bobPost], error: null });
+    // Feed route now uses rpc("get_feed") to get posts
+    mockSupabase.rpc.mockResolvedValue({ data: [bobPost], error: null });
+
+    // Enrichment queries: kudos (user's own + recent) and comments
     const kudosChain = chainBuilder({ data: [] });
+    const commentsChain = chainBuilder({ data: [] });
 
     mockSupabase.from.mockImplementation((table: string) => {
-      if (table === "follows") return followsChain;
-      if (table === "posts") return postsChain;
       if (table === "kudos") return kudosChain;
+      if (table === "comments") return commentsChain;
       return chainBuilder();
     });
 
@@ -271,11 +274,8 @@ describe("Flow: Social Interactions", () => {
       data: { user: { id: USER_A.id } },
     });
 
-    const followsChain = chainBuilder({ data: [] });
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === "follows") return followsChain;
-      return chainBuilder();
-    });
+    // Feed route now uses rpc("get_feed") — return empty after unfollow
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
     const { GET } = await import("@/app/api/feed/route");
     const feedReq = makeRequest("http://localhost:3000/api/feed");
