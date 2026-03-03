@@ -68,6 +68,7 @@ export function FeedList({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [pending, setPending] = useState<Post[]>(pendingPosts);
   const [cursor, setCursor] = useState<string | null>(() => {
     if (initialPosts.length < 20) return null;
     const last = initialPosts[initialPosts.length - 1];
@@ -177,6 +178,7 @@ export function FeedList({
 
       setPosts(data.posts ?? []);
       setCursor(data.next_cursor ?? null);
+      setPending(data.pending_posts ?? []);
       setSwitching(false);
     },
     [feedType, router]
@@ -226,7 +228,7 @@ export function FeedList({
         </div>
       )}
 
-      {pendingPosts.length > 0 && <PendingPostsNudge posts={pendingPosts} />}
+      {pending.length > 0 && <PendingPostsNudge posts={pending} />}
 
       {switching ? (
         <div className="flex justify-center py-12" role="status">

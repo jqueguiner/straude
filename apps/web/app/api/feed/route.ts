@@ -118,5 +118,19 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ posts: enriched, next_cursor });
+  // Include pending posts (sessions without details) for the "mine" tab
+  let pending_posts: any[] = [];
+  if (type === "mine" && user && !cursor) {
+    const { data } = await supabase
+      .from("posts")
+      .select("*, daily_usage:daily_usage!posts_daily_usage_id_fkey(*)")
+      .eq("user_id", user.id)
+      .is("description", null)
+      .eq("images", "[]")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    pending_posts = data ?? [];
+  }
+
+  return NextResponse.json({ posts: enriched, next_cursor, pending_posts });
 }
