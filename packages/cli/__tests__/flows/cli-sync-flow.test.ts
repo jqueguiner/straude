@@ -59,7 +59,6 @@ vi.mock("node:fs", () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { syncCommand } from "../../src/commands/sync.js";
 import { pushCommand } from "../../src/commands/push.js";
 import { CONFIG_FILE } from "../../src/config.js";
 import { _resetCcusageResolver } from "../../src/lib/ccusage.js";
@@ -213,7 +212,7 @@ describe("sync flow", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand("https://straude.com");
+    await pushCommand({}, "https://straude.com");
 
     // Login was called (init + poll = 2 fetches), then push (submit = 1 fetch)
     expect(mockFetch).toHaveBeenCalledTimes(3);
@@ -229,7 +228,7 @@ describe("sync flow", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand();
+    await pushCommand({});
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const saved = readPersistedConfig();
@@ -242,7 +241,7 @@ describe("sync flow", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand();
+    await pushCommand({});
 
     // Re-syncs today's data (1 API call)
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -260,7 +259,7 @@ describe("sync flow", () => {
     mockCcusageOnly(ccusageJson(dates));
     mockSuccessfulSubmit(dates);
 
-    await syncCommand();
+    await pushCommand({});
 
     // 2 calls: ccusage daily + codex attempt (no more --version probe)
     expect(mockExecFileSync).toHaveBeenCalledTimes(2);
@@ -277,7 +276,7 @@ describe("sync flow", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand();
+    await pushCommand({});
 
     // 2 calls: ccusage daily + codex attempt (no more --version probe)
     expect(mockExecFileSync).toHaveBeenCalledTimes(2);
@@ -523,7 +522,7 @@ describe("API error handling during push", () => {
       json: () => Promise.resolve({}),
     });
 
-    await expect(syncCommand()).rejects.toThrow(ExitError);
+    await expect(pushCommand({})).rejects.toThrow(ExitError);
 
     const saved = readPersistedConfig();
     expect(saved.last_push_date).toBeUndefined();
@@ -612,7 +611,7 @@ describe("API endpoint paths", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand("https://straude.com");
+    await pushCommand({}, "https://straude.com");
 
     const [initUrl] = mockFetch.mock.calls[0]!;
     expect(initUrl).toBe("https://straude.com/api/auth/cli/init");
@@ -699,20 +698,19 @@ describe("--api-url override", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand("http://localhost:3001");
+    await pushCommand({}, "http://localhost:3001");
 
     const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe("http://localhost:3001/api/usage/submit");
   });
 
-  it("push with configOverride uses override URL", async () => {
+  it("push with apiUrlOverride uses override URL", async () => {
     seedConfig({ api_url: "http://localhost:3000" });
     const today = todayStr();
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    const override = { ...makeConfig(), api_url: "http://localhost:3001" };
-    await pushCommand({}, override);
+    await pushCommand({}, "http://localhost:3001");
 
     const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe("http://localhost:3001/api/usage/submit");
@@ -724,7 +722,7 @@ describe("--api-url override", () => {
     mockCcusageOnly(ccusageJson([today]));
     mockSuccessfulSubmit([today]);
 
-    await syncCommand(); // no override
+    await pushCommand({}); // no override
 
     const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe("http://localhost:3000/api/usage/submit");
@@ -745,7 +743,7 @@ describe("ccusage failures during flow", () => {
       throw err;
     });
 
-    await expect(syncCommand()).rejects.toThrow(ExitError);
+    await expect(pushCommand({})).rejects.toThrow(ExitError);
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining("ccusage failed"),
     );
@@ -755,7 +753,7 @@ describe("ccusage failures during flow", () => {
     seedConfig();
     mockCcusageOnly("not json at all");
 
-    await expect(syncCommand()).rejects.toThrow(ExitError);
+    await expect(pushCommand({})).rejects.toThrow(ExitError);
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining("parse"),
     );

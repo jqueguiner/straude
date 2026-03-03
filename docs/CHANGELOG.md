@@ -12,6 +12,7 @@
 
 ### Changed
 
+- **CLI: merge `syncCommand` into `pushCommand`.** The separate sync command was a thin wrapper that checked auth and calculated days since last push before calling push. That logic now lives directly in `pushCommand`. Running `straude` with no args or `straude push` both go through the same path: login if needed, smart-sync based on `last_push_date`, or use explicit `--days`/`--date` flags. Deleted `sync.ts` and its unit test; merged relevant test cases into `push.test.ts`.
 - **CLI: parallelize ccusage + codex subprocesses.** Both data sources now run concurrently via async `execFile` + `Promise.all`, eliminating the full codex execution time from the critical path (~1-5s saved).
 - **CLI: pin `@ccusage/codex` to major version.** Changed `@ccusage/codex@latest` → `@ccusage/codex@18` so bunx/npx uses the cached copy without a registry roundtrip (~200-1000ms saved).
 - **CLI: replace binary resolution subprocess with PATH scan.** The `ccusage --version` probe (up to 3s timeout) is replaced with a pure-fs `existsSync` check on PATH directories (~100-300ms saved).

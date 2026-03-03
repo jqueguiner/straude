@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../../src/lib/auth.js", () => ({
-  requireAuth: vi.fn(),
+  loadConfig: vi.fn(),
   updateLastPushDate: vi.fn(),
   saveConfig: vi.fn(),
+}));
+
+vi.mock("../../src/commands/login.js", () => ({
+  loginCommand: vi.fn(),
 }));
 
 vi.mock("../../src/lib/api.js", () => ({
@@ -21,12 +25,14 @@ vi.mock("../../src/lib/codex.js", () => ({
 }));
 
 import { pushCommand, mergeEntries } from "../../src/commands/push.js";
-import { requireAuth, saveConfig } from "../../src/lib/auth.js";
+import { loadConfig, saveConfig } from "../../src/lib/auth.js";
+import { loginCommand } from "../../src/commands/login.js";
 import { apiRequest } from "../../src/lib/api.js";
 import { runCcusageRawAsync, parseCcusageOutput } from "../../src/lib/ccusage.js";
 import { runCodexRawAsync, parseCodexOutput } from "../../src/lib/codex.js";
 
-const mockRequireAuth = vi.mocked(requireAuth);
+const mockLoadConfig = vi.mocked(loadConfig);
+const mockLoginCommand = vi.mocked(loginCommand);
 const mockSaveConfig = vi.mocked(saveConfig);
 const mockApiRequest = vi.mocked(apiRequest);
 const mockRunCcusageRawAsync = vi.mocked(runCcusageRawAsync);
@@ -54,7 +60,7 @@ function todayStr(): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRequireAuth.mockReturnValue(fakeConfig);
+  mockLoadConfig.mockReturnValue(fakeConfig);
   // Default: no Codex data
   mockRunCodexRawAsync.mockResolvedValue("");
   mockParseCodexOutput.mockReturnValue({ data: [] });
@@ -271,7 +277,7 @@ describe("pushCommand", () => {
     const today = todayStr();
     // Config without device_id
     const configWithoutDevice = { token: "tok", username: "alice", api_url: "https://straude.com" };
-    mockRequireAuth.mockReturnValue(configWithoutDevice);
+    mockLoadConfig.mockReturnValue(configWithoutDevice);
 
     mockRunCcusageRawAsync.mockResolvedValue("{}");
     mockParseCcusageOutput.mockReturnValue({
@@ -311,10 +317,10 @@ describe("pushCommand", () => {
   it("reuses existing device_id (does not regenerate)", async () => {
     const today = todayStr();
     const existingDeviceId = "11111111-2222-3333-4444-555555555555";
-    const configWithDevice = {
+    mockLoadConfig.mockReturnValue({
       token: "tok", username: "alice", api_url: "https://straude.com",
       device_id: existingDeviceId, device_name: "my-desktop",
-    };
+    });
 
     mockRunCcusageRawAsync.mockResolvedValue("{}");
     mockParseCcusageOutput.mockReturnValue({
@@ -335,7 +341,7 @@ describe("pushCommand", () => {
       ],
     });
 
-    await pushCommand({}, configWithDevice);
+    await pushCommand({});
 
     // saveConfig should NOT have been called (device_id already existed)
     expect(mockSaveConfig).not.toHaveBeenCalled();
@@ -349,10 +355,10 @@ describe("pushCommand", () => {
 
   it("includes device_id and device_name in API request body", async () => {
     const today = todayStr();
-    const configWithDevice = {
+    mockLoadConfig.mockReturnValue({
       token: "tok", username: "alice", api_url: "https://straude.com",
       device_id: "aaaa-bbbb-cccc-dddd", device_name: "work-laptop",
-    };
+    });
 
     mockRunCcusageRawAsync.mockResolvedValue("{}");
     mockParseCcusageOutput.mockReturnValue({
@@ -373,7 +379,7 @@ describe("pushCommand", () => {
       ],
     });
 
-    await pushCommand({}, configWithDevice);
+    await pushCommand({});
 
     const submitCall = mockApiRequest.mock.calls[0]!;
     const body = JSON.parse(submitCall[2]!.body as string);
@@ -416,6 +422,100 @@ describe("pushCommand", () => {
 
     // Should still submit
     expect(mockApiRequest).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// login-if-needed (absorbed from syncCommand)
+// ---------------------------------------------------------------------------
+
+function daysAgoStr(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+describe("pushCommand — login-if-needed", () => {
+  it("runs login when not authenticated, then pushes today", async () => {
+    mockLoadConfig
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce(fakeConfig);
+    mockLoginCommand.mockResolvedValue(undefined);
+
+    mockRunCcusageRawAsync.mockResolvedValue("[]");
+    mockParseCcusageOutput.mockReturnValue({ data: [] });
+
+    await pushCommand({});
+
+    expect(mockLoginCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("exits if login fails to produce config", async () => {
+    mockLoadConfig.mockReturnValue(null);
+    mockLoginCommand.mockResolvedValue(undefined);
+
+    await expect(pushCommand({})).rejects.toThrow(ExitError);
+    expect(process.exit).toHaveBeenCalledWith(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// smart sync (no --days/--date flags)
+// ---------------------------------------------------------------------------
+
+describe("pushCommand — smart sync", () => {
+  it("pushes today when no last_push_date", async () => {
+    mockLoadConfig.mockReturnValue(fakeConfig);
+    mockRunCcusageRawAsync.mockResolvedValue("[]");
+    mockParseCcusageOutput.mockReturnValue({ data: [] });
+
+    await pushCommand({});
+
+    expect(mockLoginCommand).not.toHaveBeenCalled();
+    // sinceDate == untilDate == today (compact format)
+    const [sinceArg, untilArg] = mockRunCcusageRawAsync.mock.calls[0]!;
+    expect(sinceArg).toBe(untilArg);
+  });
+
+  it("re-syncs today when last_push_date is today", async () => {
+    mockLoadConfig.mockReturnValue({ ...fakeConfig, last_push_date: todayStr() });
+    mockRunCcusageRawAsync.mockResolvedValue("[]");
+    mockParseCcusageOutput.mockReturnValue({ data: [] });
+
+    await pushCommand({});
+
+    const [sinceArg, untilArg] = mockRunCcusageRawAsync.mock.calls[0]!;
+    expect(sinceArg).toBe(untilArg);
+  });
+
+  it("pushes diff days when last_push_date is in the past", async () => {
+    mockLoadConfig.mockReturnValue({ ...fakeConfig, last_push_date: daysAgoStr(3) });
+    mockRunCcusageRawAsync.mockResolvedValue("[]");
+    mockParseCcusageOutput.mockReturnValue({ data: [] });
+
+    await pushCommand({});
+
+    const [sinceArg, untilArg] = mockRunCcusageRawAsync.mock.calls[0]!;
+    // sinceArg should be earlier than untilArg
+    expect(sinceArg).not.toBe(untilArg);
+  });
+
+  it("caps days at MAX_BACKFILL_DAYS when gap is large", async () => {
+    mockLoadConfig.mockReturnValue({ ...fakeConfig, last_push_date: daysAgoStr(30) });
+    mockRunCcusageRawAsync.mockResolvedValue("[]");
+    mockParseCcusageOutput.mockReturnValue({ data: [] });
+
+    await pushCommand({});
+
+    const [sinceArg] = mockRunCcusageRawAsync.mock.calls[0]!;
+    // Since date should be 6 days ago (7 days total including today)
+    const sixDaysAgo = new Date();
+    sixDaysAgo.setDate(sixDaysAgo.getDate() - 6);
+    const expectedSince = `${sixDaysAgo.getFullYear()}${String(sixDaysAgo.getMonth() + 1).padStart(2, "0")}${String(sixDaysAgo.getDate()).padStart(2, "0")}`;
+    expect(sinceArg).toBe(expectedSince);
   });
 });
 

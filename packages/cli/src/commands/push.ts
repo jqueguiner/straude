@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
-import { requireAuth, updateLastPushDate, saveConfig } from "../lib/auth.js";
+import { loadConfig, updateLastPushDate, saveConfig } from "../lib/auth.js";
 import type { StraudeConfig } from "../lib/auth.js";
+import { loginCommand } from "./login.js";
 import { apiRequest } from "../lib/api.js";
 import { runCcusageRawAsync, parseCcusageOutput } from "../lib/ccusage.js";
 import type { CcusageDailyEntry, ModelBreakdownEntry } from "../lib/ccusage.js";
@@ -57,6 +58,15 @@ function parseDate(dateStr: string): Date {
 function daysBetween(a: Date, b: Date): number {
   const msPerDay = 86_400_000;
   return Math.round(Math.abs(a.getTime() - b.getTime()) / msPerDay);
+}
+
+function daysBetweenStrings(dateStrA: string, dateStrB: string): number {
+  const [ay, am, ad] = dateStrA.split("-").map(Number);
+  const [by, bm, bd] = dateStrB.split("-").map(Number);
+  const a = new Date(ay!, am! - 1, ad!);
+  const b = new Date(by!, bm! - 1, bd!);
+  const msPerDay = 86_400_000;
+  return Math.round((b.getTime() - a.getTime()) / msPerDay);
 }
 
 function formatTokens(n: number): string {
@@ -126,8 +136,23 @@ export function mergeEntries(
   return merged;
 }
 
-export async function pushCommand(options: PushOptions, configOverride?: StraudeConfig): Promise<void> {
-  const config = configOverride ?? requireAuth();
+export async function pushCommand(options: PushOptions, apiUrlOverride?: string): Promise<void> {
+  let config = loadConfig();
+
+  // Login if needed
+  if (!config) {
+    await loginCommand(apiUrlOverride);
+    config = loadConfig();
+    if (!config) {
+      console.error("Login failed.");
+      process.exit(1);
+    }
+  }
+
+  // --api-url flag overrides the stored config URL
+  if (apiUrlOverride) {
+    config = { ...config, api_url: apiUrlOverride };
+  }
 
   // Ensure device_id exists — generate on first push
   if (!config.device_id) {
@@ -137,6 +162,7 @@ export async function pushCommand(options: PushOptions, configOverride?: Straude
   }
 
   const today = new Date();
+  const todayStr = formatDate(today);
 
   let sinceDate: Date;
   let untilDate: Date;
@@ -158,7 +184,21 @@ export async function pushCommand(options: PushOptions, configOverride?: Straude
     sinceDate = new Date(today);
     sinceDate.setDate(sinceDate.getDate() - days + 1);
     untilDate = today;
+  } else if (config.last_push_date) {
+    // Smart sync: calculate days since last push
+    if (config.last_push_date >= todayStr) {
+      // Already pushed today — re-sync with days=1
+      sinceDate = today;
+      untilDate = today;
+    } else {
+      const gap = daysBetweenStrings(config.last_push_date, todayStr);
+      const days = Math.min(gap, MAX_BACKFILL_DAYS);
+      sinceDate = new Date(today);
+      sinceDate.setDate(sinceDate.getDate() - days + 1);
+      untilDate = today;
+    }
   } else {
+    // Never pushed before — push today only
     sinceDate = today;
     untilDate = today;
   }

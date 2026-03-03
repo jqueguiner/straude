@@ -3,7 +3,6 @@
 import { loginCommand } from "./commands/login.js";
 import { pushCommand } from "./commands/push.js";
 import { statusCommand } from "./commands/status.js";
-import { syncCommand } from "./commands/sync.js";
 import { CLI_VERSION } from "./config.js";
 
 const HELP = `
@@ -25,6 +24,7 @@ Push options:
 
 Examples:
   npx straude@latest
+  straude --days 3
   straude push --days 3
   straude status
 `.trim();
@@ -69,35 +69,24 @@ async function main(): Promise<void> {
     return;
   }
 
-  // No command → smart sync (login if needed, then push new stats)
-  if (!command) {
-    await syncCommand(options.apiUrl as string | undefined);
+  const apiUrl = options.apiUrl as string | undefined;
+
+  if (!command || command === "push") {
+    await pushCommand(
+      {
+        date: options.date as string | undefined,
+        days: options.days ? parseInt(options.days as string, 10) : undefined,
+        dryRun: options.dryRun === true,
+      },
+      apiUrl,
+    );
     return;
   }
 
   switch (command) {
     case "login":
-      await loginCommand(options.apiUrl as string | undefined);
+      await loginCommand(apiUrl);
       break;
-    case "push": {
-      // Allow --api-url to override stored config for push
-      const apiUrl = options.apiUrl as string | undefined;
-      let pushConfig: import("./lib/auth.js").StraudeConfig | undefined;
-      if (apiUrl) {
-        const { loadConfig } = await import("./lib/auth.js");
-        const cfg = loadConfig();
-        if (cfg) pushConfig = { ...cfg, api_url: apiUrl };
-      }
-      await pushCommand(
-        {
-          date: options.date as string | undefined,
-          days: options.days ? parseInt(options.days as string, 10) : undefined,
-          dryRun: options.dryRun === true,
-        },
-        pushConfig,
-      );
-      break;
-    }
     case "status":
       await statusCommand();
       break;
