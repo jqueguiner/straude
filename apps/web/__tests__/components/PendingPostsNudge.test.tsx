@@ -63,7 +63,8 @@ describe("PendingPostsNudge", () => {
       expect(screen.getByText("You have 1 session without details")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    // Dismiss all via the top-level X
+    fireEvent.click(screen.getByRole("button", { name: /^dismiss$/i }));
     expect(
       screen.queryByText("You have 1 session without details"),
     ).not.toBeInTheDocument();
@@ -87,6 +88,32 @@ describe("PendingPostsNudge", () => {
     ).toHaveAttribute("href", "/post/post-2?edit=1");
   });
 
+  it("dismisses a single session while keeping others visible", async () => {
+    const posts = [
+      makePost("post-1", "2026-03-01T10:00:00.000Z"),
+      makePost("post-2", "2026-03-02T11:00:00.000Z"),
+    ];
+    render(<PendingPostsNudge posts={posts} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("You have 2 sessions without details")).toBeInTheDocument();
+    });
+
+    const links = screen.getAllByRole("link", { name: /add details/i });
+    expect(links).toHaveLength(2);
+
+    // Dismiss just the first session via its per-row X button
+    const perRowButtons = screen.getAllByRole("button", { name: /dismiss nudge for/i });
+    expect(perRowButtons).toHaveLength(2);
+    fireEvent.click(perRowButtons[0]);
+
+    // Should now show only 1 session
+    expect(screen.getByText("You have 1 session without details")).toBeInTheDocument();
+    const remainingLinks = screen.getAllByRole("link", { name: /add details/i });
+    expect(remainingLinks).toHaveLength(1);
+    expect(remainingLinks[0]).toHaveAttribute("href", "/post/post-2?edit=1");
+  });
+
   it("persists dismissal across remounts and shows only new posts", async () => {
     const post1 = makePost("post-1", "2026-03-01T10:00:00.000Z");
     const { unmount } = render(<PendingPostsNudge posts={[post1]} />);
@@ -95,7 +122,7 @@ describe("PendingPostsNudge", () => {
       expect(screen.getByText("You have 1 session without details")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^dismiss$/i }));
     unmount();
 
     // Remount with original + new post — only new post should show

@@ -118,9 +118,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Include pending posts (sessions without details) for the "mine" tab
+  // Include pending posts (sessions without details) for any tab
   let pending_posts: any[] = [];
-  if (type === "mine" && user && !cursor) {
+  if (user && !cursor) {
     const { data } = await supabase
       .from("posts")
       .select("*, daily_usage:daily_usage!posts_daily_usage_id_fkey(*)")

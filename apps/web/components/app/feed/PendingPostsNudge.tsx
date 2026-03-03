@@ -77,22 +77,38 @@ export function PendingPostsNudge({ posts }: { posts: Post[] }) {
       </div>
       <div className="space-y-1">
         {visiblePosts.map((post) => (
-          <Link
-            key={post.id}
-            href={`/post/${post.id}?edit=1`}
-            className="flex items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-subtle transition-colors"
-          >
-            <div className="flex items-center gap-3 text-muted">
-              <span>{formatDate(post.created_at)}</span>
-              <span>{primaryModel(post.daily_usage?.models)}</span>
-              {post.daily_usage?.is_verified && post.daily_usage.cost_usd > 0 && (
-                <span>${post.daily_usage.cost_usd.toFixed(2)}</span>
-              )}
-            </div>
-            <span className="text-accent text-xs font-medium">
-              Add details &rarr;
-            </span>
-          </Link>
+          <div key={post.id} className="flex items-center rounded hover:bg-subtle transition-colors">
+            <Link
+              href={`/post/${post.id}?edit=1`}
+              className="flex flex-1 items-center justify-between px-2 py-1.5 text-sm min-w-0"
+            >
+              <div className="flex items-center gap-3 text-muted">
+                <span>{formatDate(post.created_at)}</span>
+                <span>{primaryModel(post.daily_usage?.models)}</span>
+                {post.daily_usage?.is_verified && post.daily_usage.cost_usd > 0 && (
+                  <span>${post.daily_usage.cost_usd.toFixed(2)}</span>
+                )}
+              </div>
+              <span className="text-accent text-xs font-medium">
+                Add details &rarr;
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissedPostIds((prev) => {
+                  const next = new Set(prev);
+                  next.add(post.id);
+                  saveDismissed(next);
+                  return next;
+                });
+              }}
+              className="shrink-0 p-1.5 text-muted/50 hover:text-foreground transition-colors"
+              aria-label={`Dismiss nudge for ${formatDate(post.created_at)} session`}
+            >
+              <X size={12} />
+            </button>
+          </div>
         ))}
       </div>
     </div>

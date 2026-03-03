@@ -31,9 +31,9 @@ export default async function FeedPage({
   let posts: any[] = data ?? [];
 
   // Fetch incomplete posts for the logged-in user (bare synced sessions).
-  // Only needed on the "mine" tab where PendingPostsNudge is relevant.
+  // Show nudge on all tabs so the user is reminded regardless of which feed they view.
   let pendingPosts: any[] = [];
-  if (user && feedType === "mine") {
+  if (user) {
     const { data } = await supabase
       .from("posts")
       .select("*, daily_usage:daily_usage!posts_daily_usage_id_fkey(*)")
