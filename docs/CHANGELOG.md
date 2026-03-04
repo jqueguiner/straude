@@ -5,6 +5,7 @@
 ### Added
 
 - **Multi-device usage support.** Users who code on multiple machines now get their stats summed instead of overwritten. New `device_usage` table stores per-device rows; `daily_usage` is recalculated as the aggregate. CLI auto-generates a `device_id` (UUID v4) on first push, stored in `~/.straude/config.json`. Old CLIs without `device_id` continue to work via the legacy upsert path. UI is unchanged — viewers see summed totals only.
+- **CLI token normalization engine.** Added source-agnostic normalization for ccusage/codex JSON so persisted `inputTokens`/`outputTokens` match table semantics, with anomaly/confidence metadata and deterministic output adjustment safeguards.
 - **Weekly digest activation email.** One-time blast to unactivated users showing this week's leaderboard top 5, new features (Codex tracking, achievements, public profiles), and a CTA to sync. Subject line includes dynamic weekly spend total. Route at `/api/cron/weekly-digest`, protected by `CRON_SECRET`.
 - **Rate limiting on write endpoints.** New `lib/rate-limit.ts` with in-memory sliding window limiter keyed by user ID. Applied to `/api/upload` (10/min), `/api/usage/submit` (20/min), and social actions — comments, follows, kudos (30/min shared window). Returns 429 with `Retry-After` header.
 - **WoW spend growth on admin dashboard.** Replaced MAU stat card with week-over-week spend growth percentage, computed from existing `spendData` with no new query.

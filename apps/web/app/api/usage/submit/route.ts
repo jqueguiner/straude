@@ -15,12 +15,12 @@ function isValidDate(dateStr: string): boolean {
   return !isNaN(d.getTime());
 }
 
-function isWithinBackfillWindow(dateStr: string): boolean {
+function isWithinBackfillWindow(dateStr: string, maxBackfillDays: number): boolean {
   const now = new Date();
   const target = new Date(dateStr);
   const diffMs = now.getTime() - target.getTime();
   const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  return diffDays >= -1 && diffDays <= MAX_BACKFILL_DAYS;
+  return diffDays >= -1 && diffDays <= maxBackfillDays;
 }
 
 function validateEntry(entry: CcusageDailyEntry): string | null {
@@ -31,17 +31,23 @@ function validateEntry(entry: CcusageDailyEntry): string | null {
   return null;
 }
 
-async function resolveUserId(request: Request): Promise<string | null> {
+interface AuthContext {
+  userId: string;
+  source: "cli" | "web";
+}
+
+async function resolveAuthContext(request: Request): Promise<AuthContext | null> {
   // Try CLI JWT first
   const authHeader = request.headers.get("authorization");
   const cliUserId = verifyCliToken(authHeader);
-  if (cliUserId) return cliUserId;
+  if (cliUserId) return { userId: cliUserId, source: "cli" };
 
   // Fall back to Supabase session (web)
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    return user?.id ?? null;
+    if (!user?.id) return null;
+    return { userId: user.id, source: "web" };
   } catch {
     return null;
   }
@@ -125,10 +131,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid source" }, { status: 400 });
   }
 
-  const userId = await resolveUserId(request);
-  if (!userId) {
+  const auth = await resolveAuthContext(request);
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const userId = auth.userId;
 
   const limited = rateLimit("usage-submit", userId, { limit: 20 });
   if (limited) return limited;
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
     if (!isValidDate(entry.date)) {
       return NextResponse.json({ error: `Invalid date: ${entry.date}` }, { status: 400 });
     }
-    if (!isWithinBackfillWindow(entry.date)) {
+    if (!isWithinBackfillWindow(entry.date, MAX_BACKFILL_DAYS)) {
       return NextResponse.json(
         { error: `Date ${entry.date} is outside the ${MAX_BACKFILL_DAYS}-day backfill window` },
         { status: 400 },
@@ -151,7 +159,7 @@ export async function POST(request: Request) {
   }
 
   const db = getServiceClient();
-  const isVerified = body.source === "cli";
+  const isVerified = auth.source === "cli";
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://straude.com").replace(/\/+$/, "");
 
   const deviceId = body.device_id;

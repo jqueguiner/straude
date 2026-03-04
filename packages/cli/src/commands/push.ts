@@ -226,15 +226,44 @@ export async function pushCommand(options: PushOptions, apiUrlOverride?: string)
   const claudeRaw: string = claudeResult;
 
   let claudeEntries: CcusageDailyEntry[];
+  let claudeAnomalies: Array<{ confidence: "high" | "medium" | "low"; mode: string }> = [];
   try {
-    claudeEntries = parseCcusageOutput(claudeRaw).data;
+    const parsed = parseCcusageOutput(claudeRaw);
+    claudeEntries = parsed.data;
+    claudeAnomalies = (parsed.anomalies ?? []).map((a) => ({ confidence: a.confidence, mode: a.mode }));
   } catch (err) {
     console.error((err as Error).message);
     process.exit(1);
   }
 
-  // Codex data — silent on failure (empty string = failed or no data)
-  const codexEntries = codexRaw ? parseCodexOutput(codexRaw).data : [];
+  // Codex data — silent on fetch failure (empty string), but surface parser anomalies.
+  const codexParsed = codexRaw ? parseCodexOutput(codexRaw) : { data: [], anomalies: [], entryMeta: [] };
+  const allAnomalies = [...claudeAnomalies, ...(codexParsed.anomalies ?? [])];
+  const mediumLowCount = allAnomalies.filter((a) => a.confidence !== "high").length;
+  if (mediumLowCount > 0) {
+    const lowCount = allAnomalies.filter((a) => a.confidence === "low").length;
+    const unresolvedCount = allAnomalies.filter((a) => a.mode === "unresolved").length;
+    console.log(
+      `Warning: normalization anomalies detected (${mediumLowCount} medium/low rows, low confidence: ${lowCount}, unresolved: ${unresolvedCount}).`,
+    );
+  }
+
+  const codexMetaByDate = new Map((codexParsed.entryMeta ?? []).map((row) => [row.date, row.meta]));
+  const blockedDates = new Set<string>();
+
+  for (const [date, meta] of codexMetaByDate) {
+    if (meta.mode === "unresolved") {
+      blockedDates.add(date);
+    }
+  }
+
+  if (blockedDates.size > 0) {
+    const blocked = [...blockedDates].sort();
+    const reason = "unresolved codex normalization";
+    console.log(`Warning: skipping Codex rows for ${blocked.length} date(s) due to ${reason}: ${blocked.join(", ")}`);
+  }
+
+  const codexEntries = codexParsed.data.filter((entry) => !blockedDates.has(entry.date));
 
   // Merge Claude + Codex entries by date
   const entries = mergeEntries(claudeEntries, codexEntries);

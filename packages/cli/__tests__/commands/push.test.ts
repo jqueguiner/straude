@@ -423,6 +423,78 @@ describe("pushCommand", () => {
     // Should still submit
     expect(mockApiRequest).toHaveBeenCalled();
   });
+
+  it("skips unresolved codex rows without dropping Claude rows on the same date", async () => {
+    const today = todayStr();
+
+    mockRunCcusageRawAsync.mockResolvedValue("{}");
+    mockParseCcusageOutput.mockReturnValue({
+      data: [
+        {
+          date: today,
+          models: ["claude-sonnet-4-5-20250929"],
+          inputTokens: 1000,
+          outputTokens: 500,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          totalTokens: 1500,
+          costUSD: 0.05,
+        },
+      ],
+    });
+
+    mockRunCodexRawAsync.mockResolvedValue('{"daily":[]}');
+    mockParseCodexOutput.mockReturnValue({
+      data: [
+        {
+          date: today,
+          models: ["gpt-5-codex"],
+          inputTokens: 2000,
+          outputTokens: 800,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          totalTokens: 2800,
+          costUSD: 3.0,
+        },
+      ],
+      anomalies: [
+        {
+          date: today,
+          source: "codex",
+          mode: "unresolved",
+          confidence: "low",
+          consistencyError: 42,
+          warnings: ["Unable to infer split"],
+        },
+      ],
+      entryMeta: [
+        {
+          date: today,
+          meta: {
+            mode: "unresolved",
+            confidence: "low",
+            warnings: ["Unable to infer split"],
+            consistencyError: 42,
+          },
+        },
+      ],
+    });
+
+    mockApiRequest.mockResolvedValue({
+      results: [
+        { date: today, usage_id: "u-1", post_id: "p-1", post_url: "https://straude.com/post/p-1", action: "created" },
+      ],
+    });
+
+    await pushCommand({});
+
+    const submitCall = mockApiRequest.mock.calls[0]!;
+    const body = JSON.parse(submitCall[2]!.body as string);
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]!.data.models).toEqual(["claude-sonnet-4-5-20250929"]);
+    expect(body.entries[0]!.data.costUSD).toBe(0.05);
+  });
+
 });
 
 // ---------------------------------------------------------------------------

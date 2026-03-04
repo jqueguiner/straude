@@ -133,7 +133,7 @@ describe("parseCcusageOutput", () => {
     expect(() => parseCcusageOutput(bad)).toThrow("Negative cost");
   });
 
-  it("rejects entry with negative token counts", () => {
+  it("normalizes negative token counts to non-negative values", () => {
     const bad = JSON.stringify({
       daily: [
         {
@@ -149,7 +149,11 @@ describe("parseCcusageOutput", () => {
       ],
       totals: {},
     });
-    expect(() => parseCcusageOutput(bad)).toThrow("Negative token count");
+    const parsed = parseCcusageOutput(bad);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0]!.totalTokens).toBe(0);
+    expect(parsed.data[0]!.inputTokens).toBe(0);
+    expect(parsed.data[0]!.outputTokens).toBe(0);
   });
 });
 

@@ -99,6 +99,9 @@ describe("parseCodexOutput", () => {
   it("returns empty data for invalid JSON", () => {
     const result = parseCodexOutput("not json");
     expect(result.data).toEqual([]);
+    expect(result.anomalies).toHaveLength(1);
+    expect(result.anomalies?.[0]?.mode).toBe("unresolved");
+    expect(result.normalizationSummary?.anomalies).toBe(1);
   });
 
   it("returns empty data for empty array", () => {
@@ -152,6 +155,29 @@ describe("parseCodexOutput", () => {
     const result = parseCodexOutput(raw);
     expect(result.data[0]!.cacheCreationTokens).toBe(0);
     expect(result.data[0]!.cacheReadTokens).toBe(0);
+  });
+
+  it("uses pass-through mode when codex JSON already separates cache read", () => {
+    const raw = JSON.stringify({
+      daily: [
+        {
+          date: "2026-03-01",
+          inputTokens: 144461,
+          cacheReadTokens: 3161216,
+          outputTokens: 27407,
+          totalTokens: 3333084,
+          costUSD: 1.18,
+          models: { "gpt-5.3-codex": {} },
+        },
+      ],
+    });
+
+    const result = parseCodexOutput(raw);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]!.inputTokens).toBe(144461);
+    expect(result.data[0]!.cacheReadTokens).toBe(3161216);
+    expect(result.normalizationSummary?.byMode.pass_through_normalized).toBe(1);
+    expect(result.anomalies).toEqual([]);
   });
 });
 

@@ -1,6 +1,14 @@
 import { execFileSync, execFile as execFileCb } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
+import {
+  normalizeTokenBuckets,
+  summarizeNormalization,
+  type NormalizationMeta,
+  type NormalizationSummary,
+  type TokenNormalizationConfidence,
+  type TokenNormalizationMode,
+} from "./token-normalization.js";
 
 /** Type-safe representation of the error thrown by execFileSync / execFile. */
 interface ExecError extends Error {
@@ -138,6 +146,7 @@ export interface CcusageDailyEntry {
   cacheReadTokens: number;
   totalTokens: number;
   costUSD: number;
+  reasoningOutputTokens?: number;
   modelBreakdown?: ModelBreakdownEntry[];
 }
 
@@ -168,6 +177,17 @@ interface CcusageV18Output {
 
 export interface CcusageOutput {
   data: CcusageDailyEntry[];
+  anomalies?: NormalizationAnomaly[];
+  normalizationSummary?: NormalizationSummary;
+}
+
+export interface NormalizationAnomaly {
+  date: string;
+  source: "ccusage" | "codex";
+  mode: TokenNormalizationMode;
+  confidence: TokenNormalizationConfidence;
+  consistencyError: number;
+  warnings: string[];
 }
 
 /**
@@ -192,17 +212,32 @@ export function runCcusageRawAsync(sinceDate: string, untilDate: string): Promis
 }
 
 /** Normalize a v18 entry into our canonical format. */
-function normalizeEntry(raw: CcusageV18Entry): CcusageDailyEntry {
+function normalizeEntry(raw: CcusageV18Entry): { entry: CcusageDailyEntry; meta: NormalizationMeta } {
+  const normalized = normalizeTokenBuckets(
+    {
+      inputTokens: raw.inputTokens,
+      outputTokens: raw.outputTokens,
+      cacheCreationTokens: raw.cacheCreationTokens,
+      cacheReadTokens: raw.cacheReadTokens,
+      totalTokens: raw.totalTokens,
+    },
+    { source: "ccusage", cacheSemantics: "separate" },
+  );
+
   return {
-    date: raw.date,
-    models: raw.modelsUsed,
-    inputTokens: raw.inputTokens,
-    outputTokens: raw.outputTokens,
-    cacheCreationTokens: raw.cacheCreationTokens,
-    cacheReadTokens: raw.cacheReadTokens,
-    totalTokens: raw.totalTokens,
-    costUSD: raw.totalCost,
-    modelBreakdown: raw.modelBreakdowns?.map((b) => ({ model: b.modelName, cost_usd: b.cost })),
+    entry: {
+      date: raw.date,
+      models: raw.modelsUsed,
+      inputTokens: normalized.normalized.inputTokens,
+      outputTokens: normalized.normalized.outputTokens,
+      cacheCreationTokens: normalized.normalized.cacheCreationTokens,
+      cacheReadTokens: normalized.normalized.cacheReadTokens,
+      totalTokens: normalized.normalized.totalTokens,
+      costUSD: raw.totalCost,
+      reasoningOutputTokens: normalized.normalized.reasoningOutputTokens,
+      modelBreakdown: raw.modelBreakdowns?.map((b) => ({ model: b.modelName, cost_usd: b.cost })),
+    },
+    meta: normalized.meta,
   };
 }
 
@@ -224,7 +259,8 @@ export function parseCcusageOutput(raw: string): CcusageOutput {
     throw new Error("Unexpected ccusage output format (expected 'daily' array)");
   }
 
-  const data = v18.daily.map(normalizeEntry);
+  const normalizedRows = v18.daily.map(normalizeEntry);
+  const data = normalizedRows.map((row) => row.entry);
 
   for (const entry of data) {
     if (!entry.date || typeof entry.costUSD !== "number") {
@@ -238,5 +274,20 @@ export function parseCcusageOutput(raw: string): CcusageOutput {
     }
   }
 
-  return { data };
+  const anomalies: NormalizationAnomaly[] = normalizedRows
+    .filter((row) => row.meta.mode === "unresolved" || row.meta.confidence !== "high" || row.meta.warnings.length > 0)
+    .map((row) => ({
+      date: row.entry.date,
+      source: "ccusage",
+      mode: row.meta.mode,
+      confidence: row.meta.confidence,
+      consistencyError: row.meta.consistencyError,
+      warnings: row.meta.warnings,
+    }));
+
+  return {
+    data,
+    anomalies,
+    normalizationSummary: summarizeNormalization(normalizedRows.map((row) => row.meta)),
+  };
 }

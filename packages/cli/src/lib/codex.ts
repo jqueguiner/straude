@@ -1,8 +1,17 @@
 import { execFileSync, execFile as execFileCb } from "node:child_process";
-import type { CcusageDailyEntry } from "./ccusage.js";
+import type { CcusageDailyEntry, NormalizationAnomaly } from "./ccusage.js";
+import {
+  normalizeTokenBuckets,
+  summarizeNormalization,
+  type NormalizationMeta,
+  type NormalizationSummary,
+} from "./token-normalization.js";
 
 export interface CodexOutput {
   data: CcusageDailyEntry[];
+  anomalies?: NormalizationAnomaly[];
+  normalizationSummary?: NormalizationSummary;
+  entryMeta?: Array<{ date: string; meta: NormalizationMeta }>;
 }
 
 // Pin to major version so bunx/npx can use the cached copy without a registry roundtrip.
@@ -71,6 +80,7 @@ interface CodexRawEntry {
   modelsUsed?: string[];
   inputTokens: number;
   outputTokens: number;
+  reasoningOutputTokens?: number;
   cachedInputTokens?: number;
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
@@ -124,36 +134,87 @@ export function parseCodexOutput(raw: string): CodexOutput {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { data: [] };
+    return {
+      data: [],
+      anomalies: [{
+        date: "unknown",
+        source: "codex",
+        mode: "unresolved",
+        confidence: "low",
+        consistencyError: 0,
+        warnings: ["Failed to parse codex JSON output."],
+      }],
+      normalizationSummary: {
+        total: 1,
+        anomalies: 1,
+        byMode: { unresolved: 1 },
+        byConfidence: { low: 1 },
+      },
+    };
   }
 
   // Empty array = no data
   if (Array.isArray(parsed) && (parsed as unknown[]).length === 0) {
-    return { data: [] };
+    return { data: [], anomalies: [], normalizationSummary: summarizeNormalization([]), entryMeta: [] };
   }
 
   const output = parsed as CodexDailyOutput;
   if (!output.daily || !Array.isArray(output.daily)) {
-    return { data: [] };
+    return { data: [], anomalies: [], normalizationSummary: summarizeNormalization([]), entryMeta: [] };
   }
 
-  const data: CcusageDailyEntry[] = output.daily
+  const normalizedRows = output.daily
     .filter((e) => {
       const cost = extractCost(e);
       return e.date && typeof cost === "number" && cost >= 0;
     })
-    .map((e) => ({
-      date: normalizeDate(e.date),
-      models: extractModels(e),
-      // cachedInputTokens is a subset of inputTokens in Codex — subtract to avoid double-counting
-      inputTokens: (e.inputTokens ?? 0) - (e.cachedInputTokens ?? e.cacheReadTokens ?? 0),
-      outputTokens: e.outputTokens ?? 0,
-      cacheCreationTokens: e.cacheCreationTokens ?? 0,
-      // cachedInputTokens (codex) maps to cacheReadTokens in our canonical format
-      cacheReadTokens: e.cachedInputTokens ?? e.cacheReadTokens ?? 0,
-      totalTokens: e.totalTokens ?? 0,
-      costUSD: extractCost(e)!,
+    .map((e) => {
+      const normalizedDate = normalizeDate(e.date);
+      const normalized = normalizeTokenBuckets(
+        {
+          inputTokens: e.inputTokens,
+          outputTokens: e.outputTokens,
+          reasoningOutputTokens: e.reasoningOutputTokens,
+          cachedInputTokens: e.cachedInputTokens,
+          cacheReadTokens: e.cacheReadTokens,
+          cacheCreationTokens: e.cacheCreationTokens,
+          totalTokens: e.totalTokens,
+        },
+        { source: "codex", cacheSemantics: "auto" },
+      );
+
+      return {
+        date: normalizedDate,
+        meta: normalized.meta,
+        entry: {
+          date: normalizedDate,
+          models: extractModels(e),
+          inputTokens: normalized.normalized.inputTokens,
+          outputTokens: normalized.normalized.outputTokens,
+          cacheCreationTokens: normalized.normalized.cacheCreationTokens,
+          cacheReadTokens: normalized.normalized.cacheReadTokens,
+          totalTokens: normalized.normalized.totalTokens,
+          costUSD: extractCost(e)!,
+          reasoningOutputTokens: normalized.normalized.reasoningOutputTokens,
+        } satisfies CcusageDailyEntry,
+      };
+    });
+
+  const anomalies: NormalizationAnomaly[] = normalizedRows
+    .filter((row) => row.meta.mode === "unresolved" || row.meta.confidence !== "high" || row.meta.warnings.length > 0)
+    .map((row) => ({
+      date: row.date,
+      source: "codex",
+      mode: row.meta.mode,
+      confidence: row.meta.confidence,
+      consistencyError: row.meta.consistencyError,
+      warnings: row.meta.warnings,
     }));
 
-  return { data };
+  return {
+    data: normalizedRows.map((row) => row.entry),
+    anomalies,
+    normalizationSummary: summarizeNormalization(normalizedRows.map((row) => row.meta)),
+    entryMeta: normalizedRows.map((row) => ({ date: row.date, meta: row.meta })),
+  };
 }
