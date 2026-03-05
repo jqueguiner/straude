@@ -200,7 +200,7 @@ export function SubmitPromptWidget({ username }: SubmitPromptWidgetProps) {
             >
               <div className="flex items-start justify-between border-b border-border px-5 py-4 sm:px-6 sm:py-5">
                 <div>
-                  <h2 id="submit-prompt-title" className="text-2xl font-semibold">
+                  <h2 id="submit-prompt-title" className="text-2xl font-semibold text-balance">
                     {view === "submit" ? "Submit a prompt" : "Community prompts"}
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-muted">

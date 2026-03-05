@@ -48,7 +48,7 @@ function WallOfLoveCard({
       href={post.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block break-inside-avoid mb-5 border border-landing-border bg-white/[0.03] p-6 transition-[border-color] duration-300 hover:border-accent/40"
+      className="block break-inside-avoid mb-5 border border-landing-border bg-white/[0.03] p-6 transition-[border-color] duration-200 hover:border-accent/40"
       custom={index}
       variants={wallCardVariants}
       initial="hidden"

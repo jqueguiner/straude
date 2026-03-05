@@ -3,11 +3,11 @@ export function FeaturesGrid() {
     <section className="grid grid-cols-1 lg:grid-cols-12 border-t border-landing-border">
       {/* Section title block */}
       <div className="lg:col-span-4 border-b border-r-0 lg:border-r border-landing-border p-8 lg:p-16 flex flex-col justify-between gap-12 bg-landing-bg">
-        <h2 className="text-accent font-medium text-[clamp(2rem,5vw,4rem)] leading-none tracking-[-0.03em]">
+        <h2 className="text-accent font-medium text-[clamp(2rem,5vw,4rem)] leading-none tracking-[-0.03em] text-balance">
           01
         </h2>
         <div>
-          <h3 className="text-landing-text text-xl font-medium tracking-[-0.03em] leading-tight mb-2">
+          <h3 className="text-landing-text text-xl font-medium tracking-[-0.03em] leading-tight text-balance mb-2">
             Telemetry for
             <br />
             Claude Code.
@@ -61,12 +61,12 @@ function FeatureCard({
 }) {
   return (
     <div
-      className={`p-8 lg:p-12 flex flex-col gap-6 transition-colors duration-300 hover:bg-accent/5 ${className ?? ""}`}
+      className={`p-8 lg:p-12 flex flex-col gap-6 transition-colors duration-200 hover:bg-accent/5 ${className ?? ""}`}
     >
       <span className="font-[family-name:var(--font-mono)] text-3xl text-accent">
         {icon}
       </span>
-      <h4 className="text-landing-text font-medium text-base">{title}</h4>
+      <h4 className="text-landing-text font-medium text-base text-balance">{title}</h4>
       <p className="font-[family-name:var(--font-mono)] text-sm text-landing-muted leading-relaxed">
         {description}
       </p>

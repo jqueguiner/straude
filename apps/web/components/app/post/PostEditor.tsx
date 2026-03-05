@@ -295,10 +295,10 @@ export function PostEditor({ post, autoEdit = false }: { post: Post; autoEdit?: 
   return (
     <div className="border-b border-border px-4 py-4 sm:px-6" onPaste={handlePaste}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted text-balance">
           Edit Post
         </h3>
-        <button onClick={() => setEditing(false)} className="text-muted hover:text-foreground">
+        <button onClick={() => setEditing(false)} className="text-muted hover:text-foreground" aria-label="Close editor">
           <X size={18} />
         </button>
       </div>

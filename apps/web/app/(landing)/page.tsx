@@ -113,7 +113,27 @@ async function TickerWithData() {
 
 export default function LandingPage() {
   return (
-    <div className="bg-[#050505] text-[#F0F0F0] min-h-screen relative">
+    <div className="bg-landing-bg text-landing-text min-h-screen relative">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "Straude",
+            applicationCategory: "DeveloperApplication",
+            operatingSystem: "macOS, Linux, Windows",
+            url: "https://straude.com",
+            description:
+              "One command to log your Claude Code output. Track your spend, compare your pace, keep the streak alive.",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+            },
+          }),
+        }}
+      />
       <HalftoneCanvas />
       <div className="relative z-10">
         <Navbar />

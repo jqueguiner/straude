@@ -1,5 +1,18 @@
 # Architecture & Design Decisions
 
+## Standing Constraints: baseline-ui, fixing-accessibility, fixing-metadata (2026-03-04)
+
+**Decision:** Enforced three skills (`baseline-ui`, `fixing-accessibility`, `fixing-metadata`) as standing constraints in `CLAUDE.md` so they apply to every conversation, not just when explicitly invoked.
+
+**Problem:** UI consistency and accessibility fixes were ad-hoc — violations accumulated between audits. Metadata (titles, descriptions, structured data) was missing on several app pages.
+
+**Alternatives considered:**
+1. **Run skills manually before each deploy** — relies on human discipline; easy to forget.
+2. **CI linting (eslint-plugin-jsx-a11y, axe)** — catches some issues but misses design-system violations (hardcoded colors, wrong animation durations, missing JSON-LD). Complementary, not sufficient.
+3. **Standing constraints in CLAUDE.md** (chosen) — zero-config enforcement on every AI-assisted coding session. The skills define the rules; CLAUDE.md ensures they're always loaded.
+
+**What was fixed in the initial sweep:** `text-balance` on all headings, hardcoded hex colors replaced with theme tokens, hover animation durations normalized to 200ms, `aria-label` on icon-only buttons, `aria-invalid`/`aria-describedby` on form components, page metadata for settings/search/recap, canonical URL, and JSON-LD structured data (WebSite + SoftwareApplication).
+
 ## Multi-Device Usage: Hybrid Child Table (2026-03-02)
 
 **Decision:** New `device_usage` table stores per-device usage rows keyed on `(user_id, date, device_id)`. `daily_usage` stays as the single aggregated row per `(user_id, date)`. On push with a `device_id`, the API upserts into `device_usage`, then recalculates `daily_usage` by summing all device rows for that date. Pushes without `device_id` (old CLIs) use the existing legacy upsert path unchanged.

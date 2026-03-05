@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   },
   description:
     "Strava for Claude Code. Track your AI-assisted coding sessions, share your wins, and compete on the leaderboard.",
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     type: "website",
     siteName: "Straude",
@@ -46,6 +49,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-[family-name:var(--font-main)] antialiased" style={{ isolation: "isolate", position: "relative" }}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Straude",
+              url: "https://straude.com",
+              description:
+                "Strava for Claude Code. Track your AI-assisted coding sessions, share your wins, and compete on the leaderboard.",
+            }),
+          }}
+        />
         {children}
         <Analytics />
         {process.env.NODE_ENV === "development" && <Agentation />}

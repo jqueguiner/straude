@@ -64,6 +64,14 @@ Only use colors from `globals.css` `@theme` block. No purple gradients, glow eff
 
 All landing page components marked `"use client"` must produce identical HTML on server and client. Avoid `Math.random()`, `Date.now()`, or any non-deterministic logic in the render path. Use static data or `useEffect` for client-only values.
 
+## Standing Constraints
+
+The following skills are always active and must be followed for all UI work:
+
+- **baseline-ui** — animation durations, typography scale, component accessibility, layout anti-patterns
+- **fixing-accessibility** — ARIA labels, keyboard access, focus/dialogs, semantics, forms, contrast
+- **fixing-metadata** — titles, descriptions, canonical, OG/Twitter cards, icons, structured data
+
 ## Landing Page Voice
 
 The landing page copy follows an "endurance athlete meets Claude Code power user" theme. Language should evoke training, logging sessions, streaks, pace, and discipline — not generic startup/SaaS copy. Avoid words like "flex", "social proof", or internal jargon in user-facing text.

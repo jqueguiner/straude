@@ -12,7 +12,7 @@ export function CTASection() {
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
-        <h2 className="text-[clamp(2rem,5vw,4rem)] font-medium tracking-[-0.03em] leading-[1.1] text-landing-text">
+        <h2 className="text-[clamp(2rem,5vw,4rem)] font-medium tracking-[-0.03em] leading-[1.1] text-landing-text text-balance">
           Ready to run?
         </h2>
         <div className="font-[family-name:var(--font-mono)] text-sm text-landing-muted">

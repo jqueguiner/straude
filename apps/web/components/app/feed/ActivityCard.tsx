@@ -334,7 +334,7 @@ export function ActivityCard({ post, userId }: { post: Post; userId?: string | n
         }}
       >
         {post.title && (
-          <h2 className="text-xl font-medium hover:underline" style={{ letterSpacing: "-0.02em" }}>
+          <h2 className="text-xl font-medium text-balance hover:underline" style={{ letterSpacing: "-0.02em" }}>
             {post.title}
           </h2>
         )}

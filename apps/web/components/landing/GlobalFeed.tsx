@@ -116,7 +116,7 @@ export async function GlobalFeed() {
       {/* Feed column */}
       <div className="lg:col-span-8 border-b lg:border-r border-landing-border">
         <div className="px-8 py-6 border-b border-landing-border flex justify-between items-center bg-landing-bg">
-          <h3 className="font-[family-name:var(--font-mono)] text-sm uppercase tracking-wider text-landing-text">
+          <h3 className="font-[family-name:var(--font-mono)] text-sm uppercase tracking-wider text-landing-text text-balance">
             GLOBAL_FEED.LOG
           </h3>
           <span className="font-[family-name:var(--font-mono)] text-sm uppercase text-accent">
@@ -163,7 +163,7 @@ export async function GlobalFeed() {
       {/* Leaderboard column */}
       <div className="lg:col-span-4 border-b border-landing-border bg-landing-bg flex flex-col">
         <div className="px-8 py-6 border-b border-landing-border">
-          <h3 className="font-[family-name:var(--font-mono)] text-sm uppercase tracking-wider text-landing-text">
+          <h3 className="font-[family-name:var(--font-mono)] text-sm uppercase tracking-wider text-landing-text text-balance">
             TOP_CODERS // WK_{weekNum}
           </h3>
         </div>

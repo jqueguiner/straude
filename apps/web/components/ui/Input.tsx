@@ -3,13 +3,16 @@ import { cn } from "@/lib/utils/cn";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
+  errorId?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ error, className, ...props }, ref) => {
+  ({ error, errorId, className, ...props }, ref) => {
     return (
       <input
         ref={ref}
+        aria-invalid={error || undefined}
+        aria-describedby={error && errorId ? errorId : undefined}
         className={cn(
           "w-full rounded-[4px] border bg-white px-4 py-3 text-base text-foreground placeholder:text-muted outline-none transition-[border-color,box-shadow] duration-150",
           error

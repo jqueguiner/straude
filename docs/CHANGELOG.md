@@ -4,6 +4,21 @@
 
 ### Added
 
+- **Standing constraints in CLAUDE.md.** Enforced `baseline-ui`, `fixing-accessibility`, and `fixing-metadata` skills as always-active project constraints for all UI work.
+- **Page metadata for settings, search, and recap.** Created layout files with `<title>` and `<meta description>` for the three app pages that were missing metadata.
+- **Canonical URL.** Added `alternates.canonical` to root layout metadata so Next.js emits `<link rel="canonical">` on all pages.
+- **JSON-LD structured data.** Added `WebSite` schema to root layout and `SoftwareApplication` schema to the landing page for search engine integration.
+- **`aria-invalid` and `aria-describedby` support** on `Input` and `Textarea` components via new `errorId` prop.
+
+### Fixed
+
+- **`text-balance` on all headings.** Added `text-balance` class to `<h1>`–`<h4>` elements across landing and app components to prevent orphaned words.
+- **Hardcoded colors on landing page.** Replaced `text-[#111]`, `text-[#ddd]`, `bg-[#050505]`, `text-[#F0F0F0]` in Navbar and landing page with theme tokens (`text-foreground`, `border-border`, `bg-landing-bg`, `text-landing-text`).
+- **Interaction animation durations.** Changed hover transition durations from `duration-300` to `duration-200` on `WallOfLove` cards and `FeaturesGrid` feature cards per baseline-ui guidelines.
+- **Missing `aria-label` on PostEditor close button.** Added `aria-label="Close editor"` to the icon-only close button.
+- **MentionInput missing accessible label.** Added `aria-label` derived from placeholder text to the underlying input/textarea element.
+
+
 - **Multi-device usage support.** Users who code on multiple machines now get their stats summed instead of overwritten. New `device_usage` table stores per-device rows; `daily_usage` is recalculated as the aggregate. CLI auto-generates a `device_id` (UUID v4) on first push, stored in `~/.straude/config.json`. Old CLIs without `device_id` continue to work via the legacy upsert path. UI is unchanged — viewers see summed totals only.
 - **CLI token normalization engine.** Added source-agnostic normalization for ccusage/codex JSON so persisted `inputTokens`/`outputTokens` match table semantics, with anomaly/confidence metadata and deterministic output adjustment safeguards.
 - **Weekly digest activation email.** One-time blast to unactivated users showing this week's leaderboard top 5, new features (Codex tracking, achievements, public profiles), and a CTA to sync. Subject line includes dynamic weekly spend total. Route at `/api/cron/weekly-digest`, protected by `CRON_SECRET`.

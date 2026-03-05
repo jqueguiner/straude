@@ -177,6 +177,7 @@ export function MentionInput({
     placeholder,
     maxLength,
     disabled,
+    "aria-label": placeholder ?? "Text input with mentions",
     className:
       className ??
       "w-full border border-border px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent",
