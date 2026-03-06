@@ -222,7 +222,7 @@ describe("sync flow", () => {
     expect(saved.last_push_date).toBe(today);
   });
 
-  it("returning user with no last_push_date: push today only", async () => {
+  it("returning user with no last_push_date: backfills 3 days", async () => {
     seedConfig(); // has token, no last_push_date
     const today = todayStr();
     mockCcusageOnly(ccusageJson([today]));

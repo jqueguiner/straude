@@ -1,7 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 
@@ -12,9 +12,21 @@ import { Button } from "@/components/ui/Button";
 
 function VerifyContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const code = searchParams.get("code");
-  const [state, setState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "success" | "error" | "unauthenticated">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Check auth on mount — redirect early if not logged in
+  useEffect(() => {
+    if (!code) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        setState("unauthenticated");
+      }
+    });
+  }, [code]);
 
   if (!code) {
     return (
@@ -33,8 +45,7 @@ function VerifyContent() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        setErrorMsg("You must be logged in to authorize the CLI.");
-        setState("error");
+        router.push(`/login?next=${encodeURIComponent(`/cli/verify?code=${code}`)}`);
         return;
       }
 
@@ -57,6 +68,10 @@ function VerifyContent() {
     }
   }
 
+  function handleSignIn() {
+    router.push(`/login?next=${encodeURIComponent(`/cli/verify?code=${code}`)}`);
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6 text-center">
@@ -72,6 +87,13 @@ function VerifyContent() {
           <div className="space-y-2">
             <p className="text-accent font-semibold">CLI authorized</p>
             <p className="text-sm text-muted">You can close this window and return to your terminal.</p>
+          </div>
+        ) : state === "unauthenticated" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted">Sign in to authorize the CLI.</p>
+            <Button onClick={handleSignIn} className="w-full">
+              Sign in to authorize
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">

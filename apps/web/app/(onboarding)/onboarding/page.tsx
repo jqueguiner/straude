@@ -11,9 +11,27 @@ import { CountryPicker } from "@/components/ui/CountryPicker";
 
 const SYNC_COMMAND = "npx straude@latest";
 
+interface UsageStatus {
+  has_data: boolean;
+  cost_usd?: number;
+  total_tokens?: number;
+  session_count?: number;
+  top_model?: string | null;
+  rank?: number | null;
+  total_users?: number | null;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
+  return String(n);
+}
+
 function Step3LogSession({ username }: { username: string }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [phase, setPhase] = useState<"waiting" | "success">("waiting");
+  const [data, setData] = useState<UsageStatus | null>(null);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(SYNC_COMMAND).then(() => {
@@ -22,8 +40,117 @@ function Step3LogSession({ username }: { username: string }) {
     });
   }, []);
 
+  // Poll for first session data
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  useEffect(() => {
+    let active = true;
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/usage/status");
+        if (!res.ok) return;
+        const json: UsageStatus = await res.json();
+        if (json.has_data && active) {
+          setData(json);
+          setPhase("success");
+          if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+      } catch {
+        // ignore — will retry on next interval
+      }
+    }
+
+    poll();
+    intervalRef.current = setInterval(poll, 4000);
+    return () => {
+      active = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
   const displayHandle = username || "yourname";
 
+  if (phase === "success" && data) {
+    return (
+      <>
+        <div className="mb-8">
+          <span
+            className="inline-block h-6 w-6 bg-accent"
+            style={{
+              clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+            }}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 mb-1">
+          <Check size={20} className="text-accent" aria-hidden="true" />
+          <h1
+            className="text-2xl font-medium tracking-tight"
+            style={{ letterSpacing: "-0.03em" }}
+          >
+            Session logged
+          </h1>
+        </div>
+        <p className="mb-6 text-sm text-muted">
+          Your usage is live. Here&apos;s what we captured.
+        </p>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded border border-border bg-subtle px-4 py-3">
+            <p className="text-xs text-muted uppercase tracking-widest">Cost</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              ${data.cost_usd?.toFixed(2)}
+            </p>
+          </div>
+          <div className="rounded border border-border bg-subtle px-4 py-3">
+            <p className="text-xs text-muted uppercase tracking-widest">Tokens</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              {formatTokens(data.total_tokens ?? 0)}
+            </p>
+          </div>
+          <div className="rounded border border-border bg-subtle px-4 py-3">
+            <p className="text-xs text-muted uppercase tracking-widest">Sessions</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              {data.session_count}
+            </p>
+          </div>
+          <div className="rounded border border-border bg-subtle px-4 py-3">
+            <p className="text-xs text-muted uppercase tracking-widest">Top model</p>
+            <p className="mt-1 text-lg font-semibold text-foreground truncate">
+              {data.top_model ?? "—"}
+            </p>
+          </div>
+        </div>
+
+        {data.rank != null && data.total_users != null && (
+          <p className="mt-4 text-sm text-muted text-center">
+            You&apos;re <span className="text-foreground font-semibold">#{data.rank}</span> of{" "}
+            <span className="text-foreground font-semibold">{data.total_users}</span> builders.
+          </p>
+        )}
+
+        <div className="mt-6 flex items-center gap-3">
+          <Button
+            onClick={() => router.push(`/u/${displayHandle}`)}
+            className="flex-1 py-3"
+          >
+            View your profile
+            <ArrowRight size={16} className="ml-1.5" />
+          </Button>
+        </div>
+
+        <div className="mt-4 flex justify-center gap-1.5">
+          <span className="h-1.5 w-6 rounded-full bg-accent" />
+          <span className="h-1.5 w-6 rounded-full bg-accent" />
+          <span className="h-1.5 w-6 rounded-full bg-accent" />
+        </div>
+      </>
+    );
+  }
+
+  // Waiting state
   return (
     <>
       <div className="mb-8">
@@ -64,40 +191,20 @@ function Step3LogSession({ username }: { username: string }) {
         {copied ? "Copied to clipboard" : "Click to copy"}
       </p>
 
-      {/* Mock CLI output */}
-      <div className="mt-5 rounded border border-border bg-subtle px-4 py-3 font-[family-name:var(--font-mono)] text-xs leading-relaxed text-muted">
-        <p>Pushing usage for 2026-02-25&hellip;</p>
-        <p className="mt-1">
-          {"  "}Cost: <span className="text-foreground">$48.20</span>
-        </p>
-        <p>
-          {"  "}Tokens: <span className="text-foreground">142k</span>
-        </p>
-        <p>
-          {"  "}Models: <span className="text-foreground">claude-sonnet-4</span>
-        </p>
-        <p className="mt-1">
-          Posted{" "}
-          <span className="text-accent">
-            &rarr; straude.com/u/{displayHandle}
-          </span>
-        </p>
+      {/* Listening indicator */}
+      <div className="mt-5 flex items-center justify-center gap-2 rounded border border-border bg-subtle px-4 py-4 font-[family-name:var(--font-mono)] text-sm text-muted">
+        <span className="animate-pulse text-accent" aria-hidden="true">&#9679;&#9679;&#9679;</span>
+        <span>Listening for your first session&hellip;</span>
       </div>
 
       <div className="mt-6 flex items-center gap-3">
         <Button
           onClick={() => router.push("/feed")}
+          variant="secondary"
           className="flex-1 py-3"
         >
-          Done! Take me to my feed
-          <ArrowRight size={16} className="ml-1.5" />
+          I&apos;ll do this later
         </Button>
-      </div>
-
-      <div className="mt-3 text-center">
-        <Link href="/feed" className="text-sm text-muted hover:text-foreground">
-          I&apos;ll do this later &rarr; Go to feed
-        </Link>
       </div>
 
       <div className="mt-4 flex justify-center gap-1.5">

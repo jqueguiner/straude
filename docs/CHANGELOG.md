@@ -4,6 +4,9 @@
 
 ### Added
 
+- **CLI first-push backfill.** New users now get their last 3 days of usage on first `straude` push instead of today-only, so profiles aren't empty on signup.
+- **`GET /api/usage/status` endpoint.** Returns aggregated usage stats and leaderboard rank for the authenticated user, used by the onboarding polling flow.
+- **Live onboarding step 3.** `Step3LogSession` now polls `/api/usage/status` every 4 seconds and transitions to a success state with stats grid and leaderboard rank when data arrives.
 - **Standing constraints in CLAUDE.md.** Enforced `baseline-ui`, `fixing-accessibility`, and `fixing-metadata` skills as always-active project constraints for all UI work.
 - **Page metadata for settings, search, and recap.** Created layout files with `<title>` and `<meta description>` for the three app pages that were missing metadata.
 - **Canonical URL.** Added `alternates.canonical` to root layout metadata so Next.js emits `<link rel="canonical">` on all pages.
@@ -12,6 +15,7 @@
 
 ### Fixed
 
+- **CLI verify page dead-end for logged-out users.** The `/cli/verify` page now detects unauthenticated users on mount and shows a "Sign in to authorize" button that redirects to `/login?next=` with return URL, instead of a dead-end error message.
 - **`text-balance` on all headings.** Added `text-balance` class to `<h1>`–`<h4>` elements across landing and app components to prevent orphaned words.
 - **Hardcoded colors on landing page.** Replaced `text-[#111]`, `text-[#ddd]`, `bg-[#050505]`, `text-[#F0F0F0]` in Navbar and landing page with theme tokens (`text-foreground`, `border-border`, `bg-landing-bg`, `text-landing-text`).
 - **Interaction animation durations.** Changed hover transition durations from `duration-300` to `duration-200` on `WallOfLove` cards and `FeaturesGrid` feature cards per baseline-ui guidelines.

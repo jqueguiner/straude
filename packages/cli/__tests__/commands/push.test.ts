@@ -539,7 +539,7 @@ describe("pushCommand — login-if-needed", () => {
 // ---------------------------------------------------------------------------
 
 describe("pushCommand — smart sync", () => {
-  it("pushes today when no last_push_date", async () => {
+  it("backfills 3 days when no last_push_date", async () => {
     mockLoadConfig.mockReturnValue(fakeConfig);
     mockRunCcusageRawAsync.mockResolvedValue("[]");
     mockParseCcusageOutput.mockReturnValue({ data: [] });
@@ -547,9 +547,15 @@ describe("pushCommand — smart sync", () => {
     await pushCommand({});
 
     expect(mockLoginCommand).not.toHaveBeenCalled();
-    // sinceDate == untilDate == today (compact format)
+    // First push backfills 3 days: sinceDate = today - 2, untilDate = today
     const [sinceArg, untilArg] = mockRunCcusageRawAsync.mock.calls[0]!;
-    expect(sinceArg).toBe(untilArg);
+    const today = new Date();
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+    expect(sinceArg).toBe(fmt(threeDaysAgo));
+    expect(untilArg).toBe(fmt(today));
   });
 
   it("re-syncs today when last_push_date is today", async () => {

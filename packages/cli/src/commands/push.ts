@@ -198,8 +198,10 @@ export async function pushCommand(options: PushOptions, apiUrlOverride?: string)
       untilDate = today;
     }
   } else {
-    // Never pushed before — push today only
-    sinceDate = today;
+    // Never pushed before — backfill last 3 days by default
+    const FIRST_RUN_BACKFILL_DAYS = 3;
+    sinceDate = new Date(today);
+    sinceDate.setDate(sinceDate.getDate() - FIRST_RUN_BACKFILL_DAYS + 1);
     untilDate = today;
   }
 
