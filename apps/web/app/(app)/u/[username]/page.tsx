@@ -141,6 +141,7 @@ export default async function ProfilePage({
         supabase
           .from("comments")
           .select("id, post_id, content, created_at, user:users!comments_user_id_fkey(username, avatar_url)")
+          .is("parent_comment_id", null)
           .in("post_id", postIds)
           .order("created_at", { ascending: false })
           .limit(postIds.length * 2),
@@ -195,10 +196,19 @@ export default async function ProfilePage({
                 {profile.display_name ?? profile.username}
               </h1>
               {!isOwn && authUser && (
-                <FollowButton
-                  username={username}
-                  initialFollowing={isFollowing}
-                />
+                <>
+                  <FollowButton
+                    username={username}
+                    initialFollowing={isFollowing}
+                  />
+                  <Link
+                    href={`/messages?with=${encodeURIComponent(username)}`}
+                    className="border border-border px-3 py-1 text-sm font-semibold hover:bg-subtle"
+                    style={{ borderRadius: 4 }}
+                  >
+                    Message
+                  </Link>
+                </>
               )}
               {isOwn && (
                 <Link

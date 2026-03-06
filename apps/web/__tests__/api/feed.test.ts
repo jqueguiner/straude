@@ -71,11 +71,13 @@ function mockSupabase(opts: {
       if (table === "comments") {
         return buildChain({
           select: vi.fn().mockReturnValue({
-            in: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue({
-                  data: comments,
-                  error: null,
+            is: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({
+                    data: comments,
+                    error: null,
+                  }),
                 }),
               }),
             }),

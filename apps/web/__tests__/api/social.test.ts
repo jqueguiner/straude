@@ -18,6 +18,10 @@ import {
   PATCH as commentPATCH,
   DELETE as commentDELETE,
 } from "@/app/api/comments/[id]/route";
+import {
+  POST as commentReactionPOST,
+  DELETE as commentReactionDELETE,
+} from "@/app/api/comments/[id]/reactions/route";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
 
@@ -310,7 +314,7 @@ describe("GET /api/posts/[id]/kudos", () => {
     const client: Record<string, any> = {
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: null },
+          data: { user: { id: "user-1" } },
           error: null,
         }),
       },
@@ -348,6 +352,10 @@ describe("POST /api/posts/[id]/comments", () => {
     const mockComment = {
       id: "c-1",
       content: "Great work!",
+      parent_comment_id: null,
+      reaction_count: 0,
+      has_reacted: false,
+      reply_count: 0,
       user: { id: "user-1", username: "bob" },
     };
 
@@ -453,28 +461,53 @@ describe("POST /api/posts/[id]/comments", () => {
 describe("GET /api/posts/[id]/comments", () => {
   it("lists comments in ascending order", async () => {
     const mockComments = [
-      { id: "c-1", created_at: "2026-01-01T10:00:00Z", content: "first" },
-      { id: "c-2", created_at: "2026-01-01T11:00:00Z", content: "second" },
+      {
+        id: "c-1",
+        created_at: "2026-01-01T10:00:00Z",
+        content: "first",
+        parent_comment_id: null,
+      },
+      {
+        id: "c-2",
+        created_at: "2026-01-01T11:00:00Z",
+        content: "second",
+        parent_comment_id: null,
+      },
     ];
 
     const client: Record<string, any> = {
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: null },
+          data: { user: { id: "user-1" } },
           error: null,
         }),
       },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({
-                data: mockComments,
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "comments") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({
+                    data: mockComments,
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "comment_reactions") {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({
+                data: [{ comment_id: "c-1", user_id: "user-1" }],
                 error: null,
               }),
             }),
-          }),
-        }),
+          };
+        }
+        return {};
       }),
     };
     (createClient as any).mockResolvedValue(client);
@@ -488,6 +521,92 @@ describe("GET /api/posts/[id]/comments", () => {
     expect(res.status).toBe(200);
     expect(json.comments).toHaveLength(2);
     expect(json.comments[0].content).toBe("first");
+    expect(json.comments[0].reaction_count).toBe(1);
+    expect(json.comments[0].has_reacted).toBe(true);
+  });
+});
+
+describe("POST /api/comments/[id]/reactions", () => {
+  it("reacts to a comment", async () => {
+    let callCount = 0;
+    const client: Record<string, any> = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "comment_reactions") {
+          if (callCount++ === 0) {
+            return {
+              insert: vi.fn().mockResolvedValue({ error: null }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ count: 3 }),
+            }),
+          };
+        }
+        return {};
+      }),
+    };
+    (createClient as any).mockResolvedValue(client);
+
+    const res = await commentReactionPOST(
+      makeRequest("POST", "/api/comments/c-1/reactions"),
+      makeContext("id", "c-1")
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.reacted).toBe(true);
+    expect(json.count).toBe(3);
+  });
+});
+
+describe("DELETE /api/comments/[id]/reactions", () => {
+  it("removes a reaction from a comment", async () => {
+    let callCount = 0;
+    const client: Record<string, any> = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "comment_reactions") {
+          if (callCount++ === 0) {
+            return {
+              delete: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockResolvedValue({ error: null }),
+                }),
+              }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ count: 1 }),
+            }),
+          };
+        }
+        return {};
+      }),
+    };
+    (createClient as any).mockResolvedValue(client);
+
+    const res = await commentReactionDELETE(
+      makeRequest("DELETE", "/api/comments/c-1/reactions"),
+      makeContext("id", "c-1")
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.reacted).toBe(false);
+    expect(json.count).toBe(1);
   });
 });
 

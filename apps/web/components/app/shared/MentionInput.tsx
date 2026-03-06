@@ -12,6 +12,7 @@ interface MentionUser {
 }
 
 interface MentionInputProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -20,9 +21,12 @@ interface MentionInputProps {
   onSubmit?: () => void;
   className?: string;
   disabled?: boolean;
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
 }
 
 export function MentionInput({
+  id,
   value,
   onChange,
   placeholder,
@@ -31,6 +35,8 @@ export function MentionInput({
   onSubmit,
   className,
   disabled,
+  ariaDescribedBy,
+  ariaInvalid,
 }: MentionInputProps) {
   const [suggestions, setSuggestions] = useState<MentionUser[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -170,6 +176,7 @@ export function MentionInput({
   }, []);
 
   const sharedProps = {
+    id,
     ref: inputRef as React.RefObject<HTMLInputElement & HTMLTextAreaElement>,
     value,
     onChange: handleInputChange,
@@ -178,6 +185,8 @@ export function MentionInput({
     maxLength,
     disabled,
     "aria-label": placeholder ?? "Text input with mentions",
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid || undefined,
     className:
       className ??
       "w-full border border-border px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent",

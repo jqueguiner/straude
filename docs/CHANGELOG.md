@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Comment threads and comment reactions.** Post detail comments now support YouTube-style reply threads and Strava-style reactions on individual comments. Added `parent_comment_id` on `comments`, a new `comment_reactions` table, and `POST`/`DELETE /api/comments/[id]/reactions`. The comment UI now groups replies beneath their root comment with inline reply/edit composers and a confirmation dialog for delete.
 - **Markdown rendering in comments.** Comments now render markdown (bold, italic, code, lists, blockquotes, links) via ReactMarkdown, matching the activity description rendering. Applies to both the full comment thread and inline feed previews.
 - **CLI first-push backfill.** New users now get their last 3 days of usage on first `straude` push instead of today-only, so profiles aren't empty on signup.
 - **`GET /api/usage/status` endpoint.** Returns aggregated usage stats and leaderboard rank for the authenticated user, used by the onboarding polling flow.
@@ -33,6 +34,7 @@
 
 ### Changed
 
+- **Feed/profile comment previews stay top-level only.** Reply threads now count toward total comment count, but feed and profile card previews filter to top-level comments so those compact surfaces stay readable.
 - **CLI: merge `syncCommand` into `pushCommand`.** The separate sync command was a thin wrapper that checked auth and calculated days since last push before calling push. That logic now lives directly in `pushCommand`. Running `straude` with no args or `straude push` both go through the same path: login if needed, smart-sync based on `last_push_date`, or use explicit `--days`/`--date` flags. Deleted `sync.ts` and its unit test; merged relevant test cases into `push.test.ts`.
 - **CLI: parallelize ccusage + codex subprocesses.** Both data sources now run concurrently via async `execFile` + `Promise.all`, eliminating the full codex execution time from the critical path (~1-5s saved).
 - **CLI: pin `@ccusage/codex` to major version.** Changed `@ccusage/codex@latest` → `@ccusage/codex@18` so bunx/npx uses the cached copy without a registry roundtrip (~200-1000ms saved).

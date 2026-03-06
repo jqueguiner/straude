@@ -5,6 +5,7 @@ import { getServiceClient } from "@/lib/supabase/service";
 import { parseMentions } from "@/lib/utils/mentions";
 import { sendNotificationEmail } from "@/lib/email/send-comment-email";
 import { checkAndAwardAchievements } from "@/lib/achievements";
+import { loadPostComments } from "@/lib/comments";
 import { rateLimit } from "@/lib/rate-limit";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -86,18 +87,41 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const limited = rateLimit("social", user.id, { limit: 30 });
   if (limited) return limited;
 
-  const { content } = await request.json();
+  const body = await request.json();
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+  const parentCommentId =
+    typeof body.parent_comment_id === "string" ? body.parent_comment_id : null;
 
-  if (!content || typeof content !== "string" || content.length > 500) {
+  if (!content || content.length > 500) {
     return NextResponse.json(
       { error: "Content is required and must be at most 500 characters" },
       { status: 400 }
     );
   }
 
+  if (parentCommentId) {
+    const { data: parentComment, error: parentCommentError } = await supabase
+      .from("comments")
+      .select("id, post_id")
+      .eq("id", parentCommentId)
+      .single();
+
+    if (parentCommentError || !parentComment || parentComment.post_id !== id) {
+      return NextResponse.json(
+        { error: "Parent comment not found" },
+        { status: 404 }
+      );
+    }
+  }
+
   const { data: comment, error } = await supabase
     .from("comments")
-    .insert({ user_id: user.id, post_id: id, content })
+    .insert({
+      user_id: user.id,
+      post_id: id,
+      content,
+      parent_comment_id: parentCommentId,
+    })
     .select("*, user:users!comments_user_id_fkey(*)")
     .single();
 
@@ -185,38 +209,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   });
 
-  return NextResponse.json(comment, { status: 201 });
+  return NextResponse.json(
+    {
+      ...comment,
+      parent_comment_id: comment.parent_comment_id ?? null,
+      reaction_count: 0,
+      has_reacted: false,
+      reply_count: 0,
+    },
+    { status: 201 }
+  );
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { searchParams } = request.nextUrl;
   const cursor = searchParams.get("cursor");
-  const limit = Math.min(Number(searchParams.get("limit") ?? 20), 50);
-
-  let query = supabase
-    .from("comments")
-    .select("*, user:users!comments_user_id_fkey(*)")
-    .eq("post_id", id)
-    .order("created_at", { ascending: true })
-    .limit(limit);
-
-  if (cursor) {
-    query = query.gt("created_at", cursor);
-  }
-
-  const { data: comments, error } = await query;
+  const limit = Math.min(Number(searchParams.get("limit") ?? 100), 200);
+  const { comments, nextCursor, error } = await loadPostComments({
+    supabase,
+    postId: id,
+    viewerId: user?.id ?? null,
+    limit,
+    cursor,
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const next_cursor =
-    (comments ?? []).length === limit
-      ? comments![comments!.length - 1]?.created_at
-      : undefined;
-
-  return NextResponse.json({ comments: comments ?? [], next_cursor });
+  return NextResponse.json({ comments, next_cursor: nextCursor });
 }

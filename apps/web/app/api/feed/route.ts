@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
           supabase
             .from("comments")
             .select("id, post_id, content, created_at, user:users!comments_user_id_fkey(username, avatar_url)")
+            .is("parent_comment_id", null)
             .in("post_id", postIds)
             .order("created_at", { ascending: false })
             .limit(postIds.length * 2),

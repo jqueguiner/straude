@@ -63,10 +63,15 @@ export interface Comment {
   id: string;
   user_id: string;
   post_id: string;
+  parent_comment_id: string | null;
   content: string;
   created_at: string;
   updated_at: string;
   user?: User;
+  reaction_count?: number;
+  has_reacted?: boolean;
+  reply_count?: number;
+  replies?: Comment[];
 }
 
 export interface LeaderboardEntry {

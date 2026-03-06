@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ActivityCard } from "@/components/app/feed/ActivityCard";
 import { CommentThread } from "@/components/app/post/CommentThread";
 import { PostEditor } from "@/components/app/post/PostEditor";
+import { loadPostComments } from "@/lib/comments";
 import type { Metadata } from "next";
 
 export async function generateMetadata({
@@ -66,12 +67,12 @@ export default async function PostDetailPage({
     .order("created_at", { ascending: false })
     .limit(3);
 
-  const commentsPromise = supabase
-    .from("comments")
-    .select("*, user:users!comments_user_id_fkey(*)")
-    .eq("post_id", id)
-    .order("created_at", { ascending: true })
-    .limit(20);
+  const commentsPromise = loadPostComments({
+    supabase,
+    postId: id,
+    viewerId: user?.id ?? null,
+    limit: 100,
+  });
 
   const viewerProfilePromise = user
     ? supabase
@@ -85,7 +86,7 @@ export default async function PostDetailPage({
     { data: post },
     { data: kudosCheck },
     { data: recentKudos },
-    { data: comments },
+    { comments },
     { data: viewerProfile },
   ] = await Promise.all([
     postPromise,

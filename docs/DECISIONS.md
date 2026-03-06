@@ -1,5 +1,23 @@
 # Architecture & Design Decisions
 
+## Comment Threads + Reactions: Single-Level UI, Separate Reaction Table (2026-03-06)
+
+**Decision:** Added `parent_comment_id` to `comments` and a separate `comment_reactions` table with `UNIQUE(comment_id, user_id)`. The UI renders replies as single-level threads like YouTube: replying anywhere inside a thread attaches the new reply to the thread root, while prefilling `@username` for the specific person being answered. Feed and profile previews continue to show only top-level comments.
+
+**Problem:** Flat comments become hard to follow once multiple people start replying on the same post. A simple chronological list loses who is responding to whom, but fully general nested discussions would add a lot of UI and moderation complexity for a feature that mostly needs "fork the conversation and keep it readable."
+
+**Alternatives considered:**
+1. **Keep comments flat, add only reactions** — makes comments more expressive but does nothing to solve conversation sprawl.
+2. **Arbitrary nested comment trees** — more flexible, but quickly creates deep indenting, harder mobile layouts, and more complex pagination/state updates. Overkill for Straude's current post conversations.
+3. **Separate `comment_replies` table** — isolates reply rows, but duplicates comment fields, CRUD routes, and notification logic for very little gain over a self-reference.
+4. **`parent_comment_id` + single-level threaded UI** (chosen) — keeps one data model, lets conversations fork cleanly, and preserves a compact mobile layout.
+
+**Why a separate reactions table:** Comment reactions are not the same social action as post kudos. Reusing `kudos` would require polymorphic references or overloading the meaning of a post-level interaction. A dedicated `comment_reactions` table keeps the constraint and API simple: one user, one reaction per comment.
+
+**Preview rule:** Feed and profile cards now filter previews to `parent_comment_id IS NULL`. Total `comment_count` still includes replies, but compact surfaces show only top-level comments so inline previews do not become mini thread viewers.
+
+**Notification scope:** No new reply notification type was added. Replies still notify the post owner via the existing comment flow, and replying to a nested comment prefills `@username` so the existing mention flow can notify the specific person being addressed.
+
 ## Standing Constraints: baseline-ui, fixing-accessibility, fixing-metadata (2026-03-04)
 
 **Decision:** Enforced three skills (`baseline-ui`, `fixing-accessibility`, `fixing-metadata`) as standing constraints in `CLAUDE.md` so they apply to every conversation, not just when explicitly invoked.
