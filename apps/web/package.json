@@ -9,6 +9,7 @@
     "lint": "eslint",
     "generate:og": "bun run ./scripts/generate-og.ts",
     "generate:og:refine": "bun run ./scripts/generate-og-real-users.ts",
+    "generate:og:athletic": "bun run ./scripts/generate-og-athletic-surge.ts",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test": "vitest run",
     "test:e2e": "playwright test"
