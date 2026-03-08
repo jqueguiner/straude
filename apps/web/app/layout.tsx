@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     url: "https://straude.com",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.png?v=2",
         width: 1200,
         height: 630,
         alt: "Straude — Code like an athlete. Track your Claude Code spend, compete with friends, share your breakthrough sessions.",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
       "Track your Claude Code spend. Compete with friends. Share your breakthrough sessions.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.png?v=2",
         width: 1200,
         height: 630,
         alt: "Straude — Code like an athlete. Track your Claude Code spend, compete with friends, share your breakthrough sessions.",

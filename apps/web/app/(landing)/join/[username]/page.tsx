@@ -67,10 +67,9 @@ export async function generateMetadata({
     openGraph: {
       title: `Join @${username} on Straude`,
       description,
-      ...(referrer.avatar_url ? { images: [{ url: referrer.avatar_url }] } : {}),
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `Join @${username} on Straude`,
       description,
     },
