@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Referral system.** Users can share `straude.com/join/[username]` to invite others. The join page shows competitive stats (weekly spend, streak, total spend) with provocative copy to drive sign-ups. Referral attribution is tracked via a `referred_by` column on `users`, set automatically when a referred user completes onboarding. Referrals create mutual follows, send a notification and email to the referrer, and trigger four new achievements (First Recruit, Crew of 5, Pace Group, Coach). Profile pages show "Recruited by" badges and crew counts. Settings page includes a referral link with copy button.
 - **Collapsible threaded replies.** Reply threads on comments are now collapsible via a toggle button showing the reply count. Threads start expanded by default.
 - **Comment threads and comment reactions.** Post detail comments now support YouTube-style reply threads and Strava-style reactions on individual comments. Added `parent_comment_id` on `comments`, a new `comment_reactions` table, and `POST`/`DELETE /api/comments/[id]/reactions`. The comment UI now groups replies beneath their root comment with inline reply/edit composers and a confirmation dialog for delete.
 - **Markdown rendering in comments.** Comments now render markdown (bold, italic, code, lists, blockquotes, links) via ReactMarkdown, matching the activity description rendering. Applies to both the full comment thread and inline feed previews.
